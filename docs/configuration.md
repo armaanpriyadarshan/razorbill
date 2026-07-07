@@ -76,7 +76,7 @@ the diarizing model still labels the speakers it hears.
 | `deepgram_api_key` | empty | Required for `live_mode = "deepgram"`. The live stream is the only thing it is used for. |
 | `deepgram_model` | `nova-3` | Deepgram model for the live stream. |
 | `live_insights` | `false` | Copilot pass on every live utterance: suggested answers, one-line explanations of things just mentioned, follow-up questions, or silence. Passes coalesce (one in flight, latest transcript wins), so cost scales with conversation activity. Needs `live_transcript`. |
-| `insight_model` | empty | Chat model for copilot passes. Empty uses `notes_model`; a non-reasoning model such as `gpt-5.3-chat-latest` shaves a little time per pass. |
+| `insight_model` | empty | Chat model for copilot passes. Empty uses `notes_model`; a smaller model such as `gpt-5.4-mini` roughly halves pass time with little quality loss on one-line tips. |
 | `insight_priority` | `false` | Request OpenAI's priority service tier for copilot passes. Costs more; only worth testing if copilot latency matters to you. |
 | `context_dirs` | `[]` | Directories of `.md`/`.txt` background documents used by note generation, `razorbill ask`, and insights. Under about 40 KB total they are injected whole; above that, a selection call picks up to six relevant files from an index. Hidden directories are skipped. |
 

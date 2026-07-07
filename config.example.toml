@@ -37,6 +37,7 @@ echo_cancel = true          # no headphones needed: routes audio through
                             # PipeWire's echo-cancel while the daemon runs
 min_meeting_seconds = 60    # discard shorter recordings (mic checks, misfires)
 grace_seconds = 20          # mic must be free this long before the meeting "ends"
+# poll_seconds = 2.0        # detection poll interval
 max_hours = 4.0             # safety cap per recording
 segment_seconds = 600       # chunk size uploaded to the transcription API
 # ignore_apps = ["OBS"]     # extra apps whose mic use should NOT trigger recording
@@ -45,13 +46,14 @@ segment_seconds = 600       # chunk size uploaded to the transcription API
 
 # --- live mode ------------------------------------------------------------------
 live_transcript = false     # rolling transcript during the meeting (live.md)
-live_mode = "realtime"      # "realtime": websocket stream, text within seconds
+live_mode = "realtime"      # "realtime": OpenAI websocket stream, text within seconds
+                            # "deepgram": interim results mid-sentence (needs key below)
                             # "segments": per-segment batch calls (one lag per segment)
 realtime_model = "gpt-realtime-whisper"
 # deepgram_api_key = "..."   # for live_mode = "deepgram" (interim results mid-sentence)
 # deepgram_model = "nova-3"
 live_insights = false       # copilot pass on every live utterance
-# insight_model = "gpt-5.3-chat-latest"  # faster model for copilot passes; empty uses notes_model
+# insight_model = "gpt-5.4-mini"          # faster model for copilot passes; empty uses notes_model
 # insight_priority = true                 # OpenAI priority tier for copilot passes (costs more)
 # context_dirs = ["~/notes/company"]   # background docs for notes, ask, and insights
 

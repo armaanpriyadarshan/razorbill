@@ -7,9 +7,10 @@
 
 <h1 align="center">razorbill</h1>
 
-Meeting transcription and notes from system audio. Bring your own key: any
-OpenAI-compatible endpoint works. TUI, CLI, and a background daemon; notes
-are plain Markdown files.
+Meeting transcription, notes, and a live in-call copilot from system
+audio. Bring your own key: any OpenAI-compatible endpoint works, with
+Deepgram as an optional live-transcription provider. TUI, CLI, and a
+background daemon; notes are plain Markdown files.
 
 <p align="center">
   <img src="assets/tui-main.svg" width="720" alt="razorbill TUI">
@@ -72,6 +73,7 @@ and the note list with a built-in Markdown reader.
 |---|---|
 | `enter` / `e` | read note / open in editor |
 | `n` | jot into the live meeting |
+| `a` | ask about the live meeting or latest note |
 | `r` | start or stop recording |
 | `p` | retry failed processing |
 | `q` | quit |
@@ -167,12 +169,16 @@ easy to drive from scripts and coding agents such as Claude Code:
   searching, and summarizing them requires no API.
 - `razorbill start`, `stop`, `toggle`, and `note "text"` are
   non-interactive and exit non-zero on failure.
+- `razorbill ask "..."` answers one question over the live transcript or
+  the latest note and prints the answer to stdout.
 - `razorbill last` prints the path of the newest note.
 
 ## Privacy
 
-Audio goes to the configured transcription endpoint; transcript text goes
-to the configured notes endpoint. Local audio is deleted after
+Audio goes to the configured transcription endpoint; with live mode on, it
+also streams during the meeting to the live-transcription provider (OpenAI
+or Deepgram). Transcript text and any `context_dirs` documents selected as
+relevant go to the configured chat endpoint. Local audio is deleted after
 transcription (`keep_audio = false`). No telemetry. Recording calls is
 regulated in many jurisdictions; know your local rules.
 
@@ -180,11 +186,14 @@ regulated in many jurisdictions; know your local rules.
 
 `uv sync` for the environment, `uv build` for distributions. One module
 per concern: `audio.py` (capture, detection, platform backends),
-`daemon.py` (watch loop), `openai_api.py` (stdlib HTTP client),
-`transcript.py` (merge, echo dedup), `meeting.py` (post-meeting pipeline),
-`tui.py` (Textual interface), `state.py` (file-based IPC). The daemon
-imports nothing outside the standard library; Textual is needed only for
-the TUI.
+`daemon.py` (watch loop, live copilot), `openai_api.py` (stdlib HTTP
+client), `ws.py` (stdlib WebSocket client), `realtime.py` and
+`deepgram.py` (streaming transcription adapters), `transcript.py` (merge,
+echo dedup), `meeting.py` (post-meeting pipeline), `context.py`
+(background-document selection), `ask.py` (questions and copilot
+prompts), `tui.py` (Textual interface), `state.py` (file-based IPC). The
+daemon imports nothing outside the standard library; Textual is needed
+only for the TUI.
 
 Named after the razorbill (Alca torda). `razorbill bird` prints an ASCII
 conversion of the reference photograph behind the logo.
