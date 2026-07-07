@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/razorbill.png" width="112" alt="razorbill logo">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/razorbill-dark.png">
+    <img src="assets/razorbill.png" width="112" alt="razorbill logo">
+  </picture>
 </p>
 
 <h1 align="center">razorbill</h1>
