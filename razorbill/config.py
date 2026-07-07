@@ -81,8 +81,12 @@ class Config:
     echo_cancel: bool = True         # speaker-safe recording, no headphones needed
 
     # --- live mode ---
-    live_transcript: bool = False    # transcribe segments during the meeting (live.md)
+    live_transcript: bool = False    # rolling transcript during the meeting (live.md)
+    live_mode: str = "realtime"      # "realtime" (websocket stream, ~1-2s lag)
+                                     # or "segments" (per-segment batch calls)
+    realtime_model: str = "gpt-realtime-whisper"
     live_insights: bool = False      # proactive insights from the live transcript
+    insight_interval: int = 60       # min seconds between proactive insight passes
     context_dirs: list[str] = field(default_factory=list)  # background docs for notes/ask/insights
 
     # --- notes ---

@@ -70,8 +70,11 @@ the diarizing model still labels the speakers it hears.
 
 | option | default | notes |
 |---|---|---|
-| `live_transcript` | `false` | Transcribe segments during the meeting into `live.md` in the meeting directory. Pair with a smaller `segment_seconds` (120 gives a 2 to 4 minute lag). Live results are cached in `live.json` and reused by final processing. |
-| `live_insights` | `false` | Proactive pass after each live segment: surface at most two new items worth interrupting with, or stay silent. Needs `live_transcript`. One chat call per segment. |
+| `live_transcript` | `false` | Maintain a rolling transcript in `live.md` in the meeting directory during the meeting. |
+| `live_mode` | `realtime` | `realtime` streams audio to the provider's `/v1/realtime` WebSocket; lines land within seconds. `segments` batch-transcribes each finished segment instead (lag up to one segment length; results cached in `live.json` and reused by final processing). |
+| `realtime_model` | `gpt-realtime-whisper` | Transcription model for the realtime stream. |
+| `live_insights` | `false` | Proactive pass over the live transcript: surface at most two new items worth interrupting with, or stay silent. Needs `live_transcript`. |
+| `insight_interval` | `60` | Minimum seconds between proactive passes. |
 | `context_dirs` | `[]` | Directories of `.md`/`.txt` background documents used by note generation, `razorbill ask`, and insights. Under about 40 KB total they are injected whole; above that, a selection call picks up to six relevant files from an index. Hidden directories are skipped. |
 
 ## Notes

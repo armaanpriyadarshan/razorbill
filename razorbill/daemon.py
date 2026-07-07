@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import ask, audio, meeting, openai_api, state
+from . import ask, audio, meeting, openai_api, realtime, state
 from .config import Config
 from .notify import notify, notify_action
 
@@ -31,6 +31,9 @@ class Daemon:
         self.processing = 0
         self.stop_flag = False
         self._live: threading.Thread | None = None
+        self._rt: realtime.Realtime | None = None
+        self._insight_running = False
+        self._last_insight = 0.0
 
     # --- state file ----------------------------------------------------------
     def _write_status(self) -> None:
@@ -60,8 +63,44 @@ class Daemon:
         self.app = app
         self.started = self.last_mic_activity = time.time()
         self.rec.start(self.dir, self.cfg, source, monitor)
+        if self.cfg.live_transcript and self.cfg.live_mode == "realtime":
+            self._rt = realtime.Realtime(
+                self.cfg, self.api, source, monitor,
+                on_line=self._make_line_sink(self.dir),
+            )
+            self._rt.start()
         log.info("recording started (%s) -> %s", app, self.dir)
         threading.Thread(target=self._offer_stop, args=(app,), daemon=True).start()
+
+    def _make_line_sink(self, d: Path):
+        lock = threading.Lock()
+
+        def on_line(text: str) -> None:
+            stamp = time.strftime("%H:%M:%S")
+            with lock, (d / meeting.LIVE_MD).open("a") as f:
+                f.write(f"**[{stamp}]** {text}\n\n")
+            if self.cfg.live_insights:
+                self._maybe_insight(d)
+
+        return on_line
+
+    def _maybe_insight(self, d: Path) -> None:
+        now = time.time()
+        if self._insight_running or now - self._last_insight < self.cfg.insight_interval:
+            return
+        self._insight_running = True
+        self._last_insight = now
+
+        def work() -> None:
+            try:
+                md = (d / meeting.LIVE_MD).read_text()
+                self._insight_pass(d, md)
+            except Exception as e:
+                log.warning("insight pass failed: %s", e)
+            finally:
+                self._insight_running = False
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _offer_stop(self, app: str) -> None:
         if notify_action(self.cfg.notify, "Recording meeting",
@@ -73,6 +112,9 @@ class Daemon:
         assert d is not None
         self.rec.stop()
         self.dir = None
+        if self._rt is not None:
+            self._rt.shutdown()
+            self._rt = None
         if self._live is not None and self._live.is_alive():
             self._live.join(timeout=60)  # let the last live pass save its cache
         elapsed = time.time() - self.started
@@ -144,7 +186,8 @@ class Daemon:
 
     def _tick(self) -> None:
         manual_start = state.consume_start_request()
-        apps = audio.mic_capture_apps(self.cfg, exclude_pids=self.rec.pids())
+        ours = self.rec.pids() | (self._rt.pids() if self._rt else set())
+        apps = audio.mic_capture_apps(self.cfg, exclude_pids=ours)
         now = time.time()
 
         if self.dir is None:
@@ -169,7 +212,8 @@ class Daemon:
             self._finish()
             return
 
-        if self.cfg.live_transcript and (self._live is None or not self._live.is_alive()):
+        if (self.cfg.live_transcript and self.cfg.live_mode == "segments"
+                and (self._live is None or not self._live.is_alive())):
             self._live = threading.Thread(target=self._live_pass, args=(self.dir,), daemon=True)
             self._live.start()
 

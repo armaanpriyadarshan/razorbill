@@ -81,31 +81,43 @@ CLI: `status [--json]`, `statusline [--polybar]`, `toggle`, `start`,
 
 ## Live mode
 
-Off by default. With `live_transcript = true`, the daemon transcribes each
-audio segment as it completes, maintaining a rolling transcript
-(`live.md` in the meeting directory) that lags the conversation by roughly
-one segment length; set `segment_seconds = 120` for a 2 to 4 minute lag.
-Segments transcribed live are cached and never re-billed by the final
-processing pass.
+Off by default. With `live_transcript = true`, the daemon maintains a
+rolling transcript (`live.md` in the meeting directory) during the meeting.
+Two implementations, selected by `live_mode`:
 
-On top of that:
+- `realtime` (default): audio streams to the provider's realtime WebSocket
+  endpoint (`gpt-realtime-whisper`) and transcript lines land within a few
+  seconds of the words being spoken. Utterance boundaries come from
+  server-side voice activity detection. Requires an endpoint that serves
+  `/v1/realtime`; the stream reconnects with backoff if it drops.
+- `segments`: each recorded audio segment is batch-transcribed as it
+  completes, so the transcript lags by up to one segment length. Works with
+  any OpenAI-compatible endpoint; segment results are cached and re-used by
+  final processing.
+
+The realtime stream is a live view only; the final note is still built by
+the batch pipeline over the full recording, which keeps channel separation
+and speaker diarization.
+
+On top of the rolling transcript:
 
 - `razorbill ask "..."` (or `a` in the TUI) answers a question against the
   live transcript during a meeting, or against the most recent note after
   one.
-- `live_insights = true` adds a proactive pass after each live segment: the
-  model sees the transcript, the background documents, and what it already
-  surfaced, and either stays silent or pushes at most two short items (a
-  relevant fact about a customer just mentioned, a commitment someone made,
-  a question worth asking before the call ends). Insights arrive as
-  notifications, in the TUI, and in `insights.md`.
+- `live_insights = true` adds a proactive pass (at most once per
+  `insight_interval` seconds): the model sees the transcript, the
+  background documents, and what it already surfaced, and either stays
+  silent or pushes at most two short items (a relevant fact about a
+  customer just mentioned, a commitment someone made, a question worth
+  asking before the call ends). Insights arrive as notifications, in the
+  TUI, and in `insights.md`.
 - `context_dirs` points at directories of Markdown or text files (a company
   knowledge base, project docs). They ground note generation, `ask`, and
   insights. Small collections are injected whole; larger ones go through a
   selection step where the model picks the relevant files from an index.
 
-Live mode adds one transcription call per segment during the meeting and,
-with insights on, one chat call per segment.
+Cost: realtime transcription is billed per audio minute for the duration of
+the meeting; insights add one chat call per interval.
 
 ## Platform support
 

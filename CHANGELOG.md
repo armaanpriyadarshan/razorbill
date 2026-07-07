@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 (2026-07-06)
+
+- Realtime live transcript (`live_mode = "realtime"`, the default): audio
+  streams to the provider's realtime WebSocket and transcript lines land in
+  `live.md` within seconds of the words being spoken. Stdlib WebSocket
+  client; automatic reconnect with backoff. The previous per-segment
+  implementation remains available as `live_mode = "segments"`.
+- Proactive insight passes are rate-limited by `insight_interval` (default
+  60 seconds) instead of running once per segment.
+
 ## 0.5.0 (2026-07-06)
 
 - Live mode (`live_transcript`): segments are transcribed during the

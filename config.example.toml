@@ -44,9 +44,12 @@ segment_seconds = 600       # chunk size uploaded to the transcription API
 # sink = ""                 # override speaker whose monitor is captured
 
 # --- live mode ------------------------------------------------------------------
-live_transcript = false     # transcribe segments during the meeting (live.md);
-                            # pair with a smaller segment_seconds, e.g. 120
-live_insights = false       # proactive insights during the meeting (needs live_transcript)
+live_transcript = false     # rolling transcript during the meeting (live.md)
+live_mode = "realtime"      # "realtime": websocket stream, text within seconds
+                            # "segments": per-segment batch calls (one lag per segment)
+realtime_model = "gpt-realtime-whisper"
+live_insights = false       # proactive insights from the live transcript
+insight_interval = 60       # min seconds between proactive passes
 # context_dirs = ["~/notes/company"]   # background docs for notes, ask, and insights
 
 # --- notes ----------------------------------------------------------------------
