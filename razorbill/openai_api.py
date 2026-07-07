@@ -131,10 +131,10 @@ def transcribe(cfg: Config, api: Api, path: Path, offset: float) -> list[dict]:
     return out
 
 
-def chat(cfg: Config, api: Api, system: str, user: str) -> str:
+def chat(cfg: Config, api: Api, system: str, user: str, model: str = "") -> str:
     body = json.dumps(
         {
-            "model": cfg.notes_model,
+            "model": model or cfg.notes_model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

@@ -48,8 +48,8 @@ live_transcript = false     # rolling transcript during the meeting (live.md)
 live_mode = "realtime"      # "realtime": websocket stream, text within seconds
                             # "segments": per-segment batch calls (one lag per segment)
 realtime_model = "gpt-realtime-whisper"
-live_insights = false       # proactive insights from the live transcript
-insight_interval = 60       # min seconds between proactive passes
+live_insights = false       # copilot pass on every live utterance
+# insight_model = "gpt-5.3-chat-latest"  # faster model for copilot passes; empty uses notes_model
 # context_dirs = ["~/notes/company"]   # background docs for notes, ask, and insights
 
 # --- notes ----------------------------------------------------------------------

@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import ask, audio, meeting, openai_api, realtime, state
+from . import ask, audio, context, meeting, openai_api, realtime, state
 from .config import Config
 from .notify import notify, notify_action
 
@@ -32,8 +32,12 @@ class Daemon:
         self.stop_flag = False
         self._live: threading.Thread | None = None
         self._rt: realtime.Realtime | None = None
-        self._insight_running = False
-        self._last_insight = 0.0
+        # copilot worker state (coalescing: one pass in flight, latest wins)
+        self._coach_lock = threading.Lock()
+        self._coach_running = False
+        self._coach_pending = False
+        self._coach_docs: str | None = None
+        self._coach_docs_lines = 0
 
     # --- state file ----------------------------------------------------------
     def _write_status(self) -> None:
@@ -80,27 +84,52 @@ class Daemon:
             with lock, (d / meeting.LIVE_MD).open("a") as f:
                 f.write(f"**[{stamp}]** {text}\n\n")
             if self.cfg.live_insights:
-                self._maybe_insight(d)
+                self._coach_kick(d)
 
         return on_line
 
-    def _maybe_insight(self, d: Path) -> None:
-        now = time.time()
-        if self._insight_running or now - self._last_insight < self.cfg.insight_interval:
-            return
-        self._insight_running = True
-        self._last_insight = now
+    # --- live copilot ---------------------------------------------------------
+    # Every utterance triggers a pass; the only pacing is the model's own
+    # latency. While a pass is in flight new utterances set a pending flag,
+    # and the worker immediately reruns on the newest transcript when it
+    # finishes. Nothing waits on a clock.
 
-        def work() -> None:
+    def _coach_kick(self, d: Path) -> None:
+        with self._coach_lock:
+            self._coach_pending = True
+            if self._coach_running:
+                return
+            self._coach_running = True
+        threading.Thread(target=self._coach_loop, args=(d,), daemon=True).start()
+
+    def _coach_loop(self, d: Path) -> None:
+        while True:
+            with self._coach_lock:
+                if not self._coach_pending:
+                    self._coach_running = False
+                    return
+                self._coach_pending = False
             try:
                 md = (d / meeting.LIVE_MD).read_text()
-                self._insight_pass(d, md)
+                self._insight_pass(d, md, docs=self._coach_context(md))
             except Exception as e:
-                log.warning("insight pass failed: %s", e)
-            finally:
-                self._insight_running = False
+                log.warning("copilot pass failed: %s", e)
 
-        threading.Thread(target=work, daemon=True).start()
+    def _coach_context(self, transcript_md: str) -> str:
+        """Background-document selection, cached and refreshed as the
+        conversation grows so the per-utterance path is one chat call."""
+        if not self.cfg.context_dirs:
+            return ""
+        lines = transcript_md.count("**[")
+        if self._coach_docs is None or lines - self._coach_docs_lines >= 10:
+            try:
+                self._coach_docs = context.gather(self.cfg, self.api,
+                                                  transcript_md[-3000:])
+                self._coach_docs_lines = lines
+            except Exception as e:
+                log.warning("context selection failed: %s", e)
+                self._coach_docs = self._coach_docs or ""
+        return self._coach_docs
 
     def _offer_stop(self, app: str) -> None:
         if notify_action(self.cfg.notify, "Recording meeting",
@@ -115,6 +144,7 @@ class Daemon:
         if self._rt is not None:
             self._rt.shutdown()
             self._rt = None
+        self._coach_docs, self._coach_docs_lines = None, 0
         if self._live is not None and self._live.is_alive():
             self._live.join(timeout=60)  # let the last live pass save its cache
         elapsed = time.time() - self.started
@@ -236,10 +266,10 @@ class Daemon:
         except Exception as e:  # the final processing pass will catch up
             log.warning("live pass failed: %s", e)
 
-    def _insight_pass(self, d: Path, transcript_md: str) -> None:
+    def _insight_pass(self, d: Path, transcript_md: str, docs: str | None = None) -> None:
         insights = d / meeting.INSIGHTS_MD
         prior = insights.read_text() if insights.exists() else ""
-        reply = ask.insight(self.cfg, self.api, transcript_md, prior)
+        reply = ask.insight(self.cfg, self.api, transcript_md, prior, docs=docs)
         if not reply:
             return
         stamp = dt.datetime.now().strftime("%H:%M")

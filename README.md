@@ -104,20 +104,25 @@ On top of the rolling transcript:
 - `razorbill ask "..."` (or `a` in the TUI) answers a question against the
   live transcript during a meeting, or against the most recent note after
   one.
-- `live_insights = true` adds a proactive pass (at most once per
-  `insight_interval` seconds): the model sees the transcript, the
-  background documents, and what it already surfaced, and either stays
-  silent or pushes at most two short items (a relevant fact about a
-  customer just mentioned, a commitment someone made, a question worth
-  asking before the call ends). Insights arrive as notifications, in the
-  TUI, and in `insights.md`.
+- `live_insights = true` runs a copilot pass on every utterance as it lands
+  in the transcript. The model sees the conversation, the background
+  documents, and everything it already sent, then either stays silent or
+  pushes at most two one-line items: a suggested answer to a question just
+  asked, what the documents know about a company or tool just mentioned,
+  the play the other side is running, or the follow-up question worth
+  asking. There is no polling interval; the only pacing is model latency
+  (a few seconds), and passes coalesce so a burst of utterances yields one
+  pass over the newest state. Output arrives as notifications, in the TUI,
+  and in `insights.md`. `insight_model` selects a faster chat model for
+  these passes; unset, they use `notes_model`.
 - `context_dirs` points at directories of Markdown or text files (a company
   knowledge base, project docs). They ground note generation, `ask`, and
   insights. Small collections are injected whole; larger ones go through a
   selection step where the model picks the relevant files from an index.
 
 Cost: realtime transcription is billed per audio minute for the duration of
-the meeting; insights add one chat call per interval.
+the meeting; the copilot adds roughly one chat call per utterance during
+active conversation.
 
 ## Platform support
 

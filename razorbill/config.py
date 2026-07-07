@@ -85,8 +85,9 @@ class Config:
     live_mode: str = "realtime"      # "realtime" (websocket stream, ~1-2s lag)
                                      # or "segments" (per-segment batch calls)
     realtime_model: str = "gpt-realtime-whisper"
-    live_insights: bool = False      # proactive insights from the live transcript
-    insight_interval: int = 60       # min seconds between proactive insight passes
+    live_insights: bool = False      # copilot pass on every live utterance
+    insight_model: str = ""          # fast chat model for copilot passes; empty
+                                     # falls back to notes_model (higher latency)
     context_dirs: list[str] = field(default_factory=list)  # background docs for notes/ask/insights
 
     # --- notes ---

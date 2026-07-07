@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0 (2026-07-06)
+
+- The insight interval is gone. The live copilot now runs on every
+  utterance as it lands in the transcript: passes coalesce (one in flight;
+  a burst of utterances yields one rerun over the newest state), so the
+  only pacing is model latency.
+- The copilot prompt targets in-call help: suggested answers to questions
+  just asked, one-line explanations of companies and tools grounded in the
+  background documents, naming the play the other side is running, and
+  follow-up questions.
+- `insight_model` selects a faster chat model for copilot passes; unset,
+  they use `notes_model`. Background-document selection is cached per
+  meeting and refreshed as the conversation grows, keeping the
+  per-utterance path to a single chat call. `insight_interval` is removed.
+
 ## 0.6.0 (2026-07-06)
 
 - Realtime live transcript (`live_mode = "realtime"`, the default): audio

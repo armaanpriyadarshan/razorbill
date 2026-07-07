@@ -48,26 +48,41 @@ def answer(cfg: Config, api: openai_api.Api, question: str) -> str:
 
 
 INSIGHT_SYSTEM = """\
-You listen to a live meeting and decide whether anything is worth surfacing
-to the note owner ("Me") right now, unprompted. Worth surfacing: a relevant
-fact from the background documents about something just mentioned (a
-customer, a product, a decision that contradicts the documents), a
-commitment someone just made, or a concrete question the owner should ask
-before the meeting ends. Not worth surfacing: summaries, restatements,
-generic advice, anything already surfaced.
+You are a silent copilot for one side of a live call ("Me"; the other
+participants are "Them"). You run after every new utterance, seeing the
+transcript so far, background documents, and everything you already sent.
+Decide whether a short message would help Me in this moment. Send one when:
 
-Reply with at most two short bullets, each one line. If nothing new is
-clearly worth an interruption, reply with exactly: NONE
+- Them just asked Me a question: suggest the answer in one line, grounded
+  in the background documents when they apply.
+- A company, product, tool, metric, or strategy came up that the documents
+  know about, or that deserves a one-line explanation.
+- Them is running an identifiable play (an intro framing, a pricing anchor,
+  an objection script): name it and what it means for Me.
+- A topic is wrapping up: the one follow-up question Me should ask.
+
+Hard rules: never summarize or restate the conversation, never repeat or
+rephrase anything you already sent, no generic advice, no filler. At most
+two bullets, each one line, telegraphic. When nothing new would help right
+now, reply with exactly: SILENT
 """
 
 
-def insight(cfg: Config, api: openai_api.Api, transcript_md: str, prior: str) -> str:
-    """One proactive pass over the live transcript. Returns "" when silent."""
+def insight(cfg: Config, api: openai_api.Api, transcript_md: str, prior: str,
+            docs: str | None = None) -> str:
+    """One copilot pass over the live transcript. Returns "" when silent.
+
+    `docs` lets the caller reuse a cached background-document selection;
+    None gathers fresh (adds a selection call for large collections).
+    """
     parts = []
-    docs = context.gather(cfg, api, transcript_md[-3000:])
+    if docs is None:
+        docs = context.gather(cfg, api, transcript_md[-3000:])
     if docs:
         parts.append(f"Background documents:\n\n{docs}")
     parts.append(f"Transcript so far:\n\n{transcript_md[-8000:]}")
-    parts.append(f"Already surfaced earlier (do not repeat):\n{prior[-2000:] or 'nothing yet'}")
-    reply = openai_api.chat(cfg, api, INSIGHT_SYSTEM, "\n\n".join(parts)).strip()
-    return "" if not reply or reply.upper().startswith("NONE") else reply
+    parts.append(f"Already sent to Me (never repeat or rephrase these):\n"
+                 f"{prior[-2000:] or 'nothing yet'}")
+    reply = openai_api.chat(cfg, api, INSIGHT_SYSTEM, "\n\n".join(parts),
+                            model=cfg.insight_model).strip()
+    return "" if not reply or reply.upper().startswith(("SILENT", "NONE")) else reply
