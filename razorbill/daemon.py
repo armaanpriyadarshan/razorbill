@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import signal
-import sys
 import threading
 import time
 from pathlib import Path
@@ -44,15 +43,21 @@ class Daemon:
 
     # --- meeting lifecycle -----------------------------------------------------
     def _start(self, app: str) -> None:
-        self.dir = meeting.new_meeting_dir(self.cfg, app)
-        self.app = app
-        self.started = self.last_mic_activity = time.time()
         if self.ec.active:
             # Record "them" from the real sink's monitor; it carries everything
             # (including apps pinned past the echo-cancel sink).
             source, monitor = audio.EC_SOURCE, f"{self.ec.prev_sink}.monitor"
         else:
             source, monitor = audio.default_source(self.cfg), audio.default_monitor(self.cfg)
+        if not source:
+            log.error("no microphone configured; set `source` in the config "
+                      "(see docs/configuration.md, platform devices)")
+            notify(self.cfg.notify, "razorbill: cannot record",
+                   "No microphone configured. Set `source` in the config.")
+            return
+        self.dir = meeting.new_meeting_dir(self.cfg, app)
+        self.app = app
+        self.started = self.last_mic_activity = time.time()
         self.rec.start(self.dir, self.cfg, source, monitor)
         log.info("recording started (%s) -> %s", app, self.dir)
         threading.Thread(target=self._offer_stop, args=(app,), daemon=True).start()
@@ -107,13 +112,18 @@ class Daemon:
         signal.signal(signal.SIGINT, self._on_signal)
         self.cfg.out_dir().mkdir(parents=True, exist_ok=True)
 
-        if self.cfg.echo_cancel:
+        if self.cfg.echo_cancel and audio.PLATFORM == "linux":
             if self.ec.enable(self.cfg):
                 log.info("echo cancellation active; no headphones needed")
             else:
                 log.warning("echo-cancel module unavailable; recording without it "
                             "(wear headphones or set echo_cancel = false)")
-        log.info("watching for meetings (mic capture by other apps)")
+        if audio.detection_supported():
+            log.info("watching for meetings (mic capture by other apps)")
+        else:
+            log.info("automatic detection is not available on %s; start recordings "
+                     "manually (TUI, `razorbill start`, or `razorbill toggle`)",
+                     audio.PLATFORM)
 
         while not self.stop_flag:
             try:
@@ -161,12 +171,6 @@ class Daemon:
 
 def run(cfg: Config) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    if sys.platform != "linux":
-        raise SystemExit(
-            "The recording daemon needs PipeWire or PulseAudio, so it only runs on "
-            "Linux today. The TUI, config, and notes work everywhere; see the "
-            "platform support section of the README."
-        )
     try:
         api = openai_api.resolve(cfg)
     except openai_api.ApiError as e:

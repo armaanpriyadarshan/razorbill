@@ -17,24 +17,27 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Input, Label, ListItem, ListView, Markdown, Static
 
-from . import config, meeting, openai_api, state
+from . import audio, config, meeting, openai_api, state
 
-# A razorbill looking down its own bill, drawn from a portrait photo: the
-# rounded head, the white line arcing from bill base to eye, the stripe
-# crossing near the bill tip, and the white breast below the shoulder.
+# The project mark (assets/razorbill.png) rendered as braille by
+# ascii-image-converter: a razorbill with its head tilted down.
 ART = "\n".join(
     (
-        "    .--~~--.",
-        "   /        \\",
-        "  |  ,__.--o |",
-        "   \\ \\        \\",
-        "    \\=\\        \\__",
-        "     `-\\     __.-'",
-        "        `)  (",
+        "⠀⠀⠀⠀⢀⣠⣤⣶⣶⣦⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+        "⠀⠀⢀⣶⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀",
+        "⠀⠀⣾⣿⣿⣿⣿⣿⡿⣿⣿⣿⣿⣿⣄⠀⠀⠀⠀⠀⠀⠀",
+        "⠀⠀⣿⣿⣿⣿⢟⣭⣾⣿⣿⣿⣿⣿⣿⣦⠀⠀⠀⠀⠀⠀",
+        "⠀⠀⢸⣿⡟⣱⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄⠀⠀⠀⠀",
+        "⠀⠀⣼⣿⣾⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄⠀⠀",
+        "⠀⢸⡇⣿⣳⠟⠁⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⠀",
+        "⠀⢸⣿⡿⠃⠀⠀⠀⠀⠈⠉⠉⠉⠉⠉⠉⠙⠻⢿⣿⣿⠀",
+        "⠀⠀⠉⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⠀",
+        "⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀",
+        "⠀⠀⠀⠀⠀⢿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
     )
 )
 
-TAGLINE = "meeting notes that write themselves"
+TAGLINE = "meeting transcription and notes · bring your own key"
 
 
 def _status() -> tuple[str, str, str]:
@@ -199,8 +202,10 @@ class MainScreen(Screen):
         empty = self.query_one("#empty", Static)
         empty.display = not notes
         if not notes:
-            empty.update("no meetings yet · join a call and razorbill will pick it up,\n"
-                         "or press r to record right now")
+            hint = ("recording starts when a meeting app opens the microphone, or press r"
+                    if audio.detection_supported()
+                    else "press r to start a recording")
+            empty.update(f"no notes yet · {hint}")
 
     # --- actions -----------------------------------------------------------
 
@@ -270,7 +275,7 @@ class MainScreen(Screen):
 
 
 class RazorbillApp(App):
-    """razorbill: meeting notes that write themselves."""
+    """razorbill: meeting transcription and notes, bring your own key."""
 
     TITLE = "razorbill"
 
@@ -280,11 +285,11 @@ class RazorbillApp(App):
         color: #e9e5dc;
     }
     #header {
-        height: 9;
+        height: 13;
         padding: 1 2 0 2;
     }
     #art {
-        width: 24;
+        width: 27;
         color: #e9e5dc;
     }
     #masthead {

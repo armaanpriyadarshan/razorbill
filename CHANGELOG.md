@@ -15,9 +15,13 @@
   the API and written to the config with mode 600.
 - Publishing groundwork: full package metadata, MIT license file, tests
   (pytest), this changelog, a logo, and documentation under `docs/`.
-- The daemon now refuses to start on non-Linux platforms with a clear
-  message instead of failing inside pactl. The TUI and CLI run anywhere.
-- `razorbill --version`.
+- Cross-platform recording: automatic detection, default devices, and echo
+  cancellation on Linux (PipeWire); manual recording with explicitly
+  configured devices on macOS (avfoundation) and Windows (dshow).
+  Notifications via notify-send on Linux and osascript on macOS.
+- `razorbill status --json` for scripts and agents. `razorbill --version`.
+- Assets generated from a razorbill reference photograph: the logo through
+  the OpenAI image API, the terminal art through ascii-image-converter.
 
 ## 0.3.1 (2026-07-06)
 

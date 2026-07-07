@@ -1,7 +1,7 @@
 [project]
 name = "razorbill-notes"
 version = "0.4.0"
-description = "Meeting notes that write themselves. Records every call from system audio on Linux and turns it into Markdown with your own OpenAI key."
+description = "Meeting transcription and notes from system audio. TUI, CLI, and daemon; bring your own OpenAI-compatible API key."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -17,6 +17,8 @@ classifiers = [
     "Environment :: No Input/Output (Daemon)",
     "Intended Audience :: End Users/Desktop",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

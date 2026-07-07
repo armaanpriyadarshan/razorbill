@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 
@@ -24,8 +25,11 @@ def cmd_tui(_args) -> None:
     tui.run()
 
 
-def cmd_status(_args) -> None:
+def cmd_status(args) -> None:
     s = state.read_status()
+    if getattr(args, "json", False):
+        print(json.dumps(s))
+        return
     if s.get("state") == "recording":
         mins = (time.time() - s.get("since", time.time())) / 60
         print(f"recording  {s.get('app')}  ({mins:.0f} min)")
@@ -119,13 +123,15 @@ def cmd_reprocess(_args) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(
         prog="razorbill",
-        description="Meeting notes that write themselves. Run with no arguments for the TUI.",
+        description="Meeting transcription and notes from system audio, using your own "
+                    "OpenAI-compatible API key. No arguments opens the TUI.",
     )
     p.add_argument("-V", "--version", action="version", version=f"razorbill {__version__}")
     sub = p.add_subparsers(dest="cmd")
     sub.add_parser("tui", help="open the terminal interface (default)")
     sub.add_parser("run", help="run the recording daemon")
-    sub.add_parser("status", help="show daemon state")
+    st = sub.add_parser("status", help="show daemon state")
+    st.add_argument("--json", action="store_true", help="machine-readable output")
     sl = sub.add_parser("statusline", help="one-line status for a bar module")
     sl.add_argument("--polybar", action="store_true", help="emit polybar color tags")
     sub.add_parser("toggle", help="start recording if idle, stop if recording")
@@ -135,7 +141,7 @@ def main() -> None:
     sub.add_parser("start", help="start recording now, without waiting for detection")
     sub.add_parser("stop", help="stop the current recording and generate notes")
     sub.add_parser("reprocess", help="retry failed/unfinished meetings")
-    sub.add_parser("bird", help="meet the bird")
+    sub.add_parser("bird", help="print the ASCII artwork")
 
     args = p.parse_args()
     cmd = args.cmd or "tui"

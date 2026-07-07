@@ -43,9 +43,28 @@ notes, or a local transcription server with a cloud notes model.
 | `max_hours` | `4.0` | Hard stop for a single recording. |
 | `segment_seconds` | `600` | Audio chunk length sent to the transcription API. Smaller chunks transcribe sooner but with less context. |
 | `ignore_apps` | `[]` | Extra application names whose mic use should not start a recording. Matched case-insensitively as substrings. razorbill's own plumbing, pavucontrol, and desktop settings panels are always ignored. |
-| `source` | empty | Microphone override, a PulseAudio source name from `pactl list sources short`. Empty means the system default. |
-| `sink` | empty | Speaker override; razorbill records this sink's monitor as the "Them" channel. |
-| `echo_cancel` | `true` | Load PipeWire's echo-cancel module and route audio through it while the daemon runs, so speakers do not bleed into the mic. Defaults are restored on shutdown. |
+| `source` | empty | Microphone device. Empty means the system default on Linux; required on macOS and Windows (see platform devices below). |
+| `sink` | empty | System-audio device for the "Them" channel. On Linux, razorbill records this sink's monitor (default sink when empty). On macOS and Windows, empty disables the channel. |
+| `echo_cancel` | `true` | Linux only: load PipeWire's echo-cancel module and route audio through it while the daemon runs, so speakers do not bleed into the mic. Defaults are restored on shutdown. Ignored elsewhere. |
+
+## Platform devices
+
+Automatic detection, default-device discovery, and echo cancellation are
+Linux features. On macOS and Windows, recordings are started manually and
+devices are named explicitly:
+
+- macOS (avfoundation): list devices with
+  `ffmpeg -f avfoundation -list_devices true -i ""`. Set `source` to the
+  microphone's name or index. For the system-audio channel, install a
+  loopback driver (for example BlackHole), route output through it, and set
+  `sink` to its device name.
+- Windows (dshow): list devices with
+  `ffmpeg -list_devices true -f dshow -i dummy`. Set `source` to the
+  microphone's device name. For system audio, set `sink` to a loopback
+  capture device (Stereo Mix or virtual-audio-capturer, when available).
+
+Without `sink`, the microphone channel alone is recorded and transcribed;
+the diarizing model still labels the speakers it hears.
 
 ## Notes
 

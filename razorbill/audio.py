@@ -1,15 +1,33 @@
-"""PipeWire/PulseAudio detection and dual-stream recording via pactl + ffmpeg."""
+"""Audio capture and meeting detection.
+
+Platform support:
+- Linux (PipeWire/PulseAudio): automatic meeting detection via pactl,
+  echo cancellation, default-device discovery.
+- macOS (avfoundation) and Windows (dshow): manual recording. Devices are
+  named explicitly in the config (`source`, `sink`); those input APIs have
+  no portable "default microphone" alias ffmpeg could use.
+
+Everything records through ffmpeg into segmented 16 kHz mono Opus files.
+"""
 
 from __future__ import annotations
 
 import json
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 from .config import Config
 
+PLATFORM = "linux" if sys.platform == "linux" else "mac" if sys.platform == "darwin" else "windows"
+
+EC_SOURCE = "razorbill_ec_source"
+EC_SINK = "razorbill_ec_sink"
+
+
+# --- pactl helpers (Linux) ----------------------------------------------------
 
 def _pactl_json(*args: str):
     out = subprocess.run(
@@ -26,27 +44,55 @@ def _pactl_line(*args: str) -> str:
     ).stdout.strip()
 
 
+def _prop(props: dict, key: str) -> str:
+    return str(props.get(key, "")).strip('"')
+
+
+# --- device selection -----------------------------------------------------------
+
 def default_source(cfg: Config) -> str:
-    return cfg.source or _pactl_line("get-default-source")
+    """The microphone device for the "me" channel."""
+    if cfg.source:
+        return cfg.source
+    if PLATFORM == "linux":
+        return _pactl_line("get-default-source")
+    return ""  # macOS/Windows: must be configured explicitly
 
 
 def default_monitor(cfg: Config) -> str:
-    sink = cfg.sink or _pactl_line("get-default-sink")
-    return f"{sink}.monitor"
+    """The system-audio device for the "them" channel. Empty disables it."""
+    if PLATFORM == "linux":
+        sink = cfg.sink or _pactl_line("get-default-sink")
+        return f"{sink}.monitor"
+    return cfg.sink  # macOS: a loopback device such as BlackHole; Windows: a capture device
 
 
-def _prop(props: dict, key: str) -> str:
-    return str(props.get(key, "")).strip('"')
+def _input_args(device: str) -> list[str]:
+    """ffmpeg input arguments for one capture device on this platform."""
+    if PLATFORM == "linux":
+        # "-name razorbill" tags our capture streams so the detector's ignore
+        # list catches them; the daemon also excludes them by PID.
+        return ["-f", "pulse", "-name", "razorbill", "-i", device]
+    if PLATFORM == "mac":
+        return ["-f", "avfoundation", "-i", f":{device}"]
+    return ["-f", "dshow", "-i", f"audio={device}"]
+
+
+# --- meeting detection (Linux only) -----------------------------------------------
+
+def detection_supported() -> bool:
+    return PLATFORM == "linux"
 
 
 def mic_capture_apps(cfg: Config, exclude_pids: set[int] | None = None) -> list[str]:
     """Names of foreign apps currently recording from a real mic (not a monitor).
 
-    Any meeting app (Zoom, Meet/Teams in a browser, Slack huddles, Discord)
-    opens the microphone for the duration of the call, so "someone is capturing
-    the mic" is a platform-agnostic 'meeting in progress' signal.
-    `exclude_pids` filters out our own recorder processes.
+    Meeting apps (Zoom, Meet or Teams in a browser, Slack huddles, Discord)
+    hold the microphone open for the length of the call, so a foreign capture
+    stream is the meeting signal. Returns [] on platforms without detection.
     """
+    if not detection_supported():
+        return []
     monitors = {
         s["index"] for s in _pactl_json("list", "sources") if str(s.get("name", "")).endswith(".monitor")
     }
@@ -69,17 +115,16 @@ def mic_capture_apps(cfg: Config, exclude_pids: set[int] | None = None) -> list[
     return apps
 
 
-EC_SOURCE = "razorbill_ec_source"
-EC_SINK = "razorbill_ec_sink"
-
+# --- echo cancellation (Linux only) -------------------------------------------------
 
 class EchoCancel:
     """Manage PipeWire/PulseAudio's echo-cancel module so recording without
-    headphones doesn't feed the speakers back into the mic.
+    headphones does not feed the speakers back into the mic.
 
     On enable: load module-echo-cancel against the real mic/speakers, then make
     the cancelled pair the system defaults so meeting apps route through it.
     On disable: restore the previous defaults and unload the module.
+    No-op on platforms other than Linux.
     """
 
     def __init__(self) -> None:
@@ -94,6 +139,8 @@ class EchoCancel:
         return [line.split("\t")[0] for line in out.splitlines() if "razorbill_ec" in line]
 
     def enable(self, cfg: Config) -> bool:
+        if PLATFORM != "linux":
+            return False
         try:
             for mid in self._stale_module_ids():  # e.g. left over from a crash
                 subprocess.run(["pactl", "unload-module", mid], capture_output=True, timeout=10)
@@ -132,12 +179,14 @@ class EchoCancel:
         return self.module_id is not None
 
 
+# --- recording -------------------------------------------------------------------
+
 class Recorder:
-    """Two ffmpeg processes, mic ("me") and sink monitor ("them"), writing
-    segmented 16 kHz mono Opus files, small enough for the transcription API.
+    """One ffmpeg process per channel: mic ("me") and system audio ("them").
 
     Separate processes so a channel with no flowing data (a monitor of a sink
-    nothing plays to yet) can never stall the other channel's recording.
+    nothing plays to yet) can never stall the other channel's recording. The
+    "them" channel is skipped when no system-audio device is available.
     """
 
     def __init__(self) -> None:
@@ -148,13 +197,13 @@ class Recorder:
         seg = str(cfg.segment_seconds)
         audio = ["-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k",
                  "-f", "segment", "-segment_time", seg, "-segment_format", "ogg"]
+        channels = [(source, "me")]
+        if monitor:
+            channels.append((monitor, "them"))
         self.procs = []
-        for input_name, prefix in ((source, "me"), (monitor, "them")):
-            # "-name razorbill" tags our capture streams so the detector's
-            # ignore list catches them; the daemon also excludes them by PID.
+        for device, prefix in channels:
             cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error",
-                   "-f", "pulse", "-name", "razorbill", "-i", input_name,
-                   *audio, str(dir / f"{prefix}-%03d.ogg")]
+                   *_input_args(device), *audio, str(dir / f"{prefix}-%03d.ogg")]
             self.procs.append(subprocess.Popen(
                 cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=(dir / f"ffmpeg-{prefix}.log").open("wb"),
