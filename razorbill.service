@@ -6,6 +6,9 @@ After=pipewire-pulse.service pipewire.service
 ExecStart=%h/.local/bin/razorbill run
 Restart=on-failure
 RestartSec=5
+# The daemon exits promptly on stop (note generation is recovered at the
+# next boot), so a short stop timeout keeps restarts tight.
+TimeoutStopSec=15
 
 [Install]
 WantedBy=default.target

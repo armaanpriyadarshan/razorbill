@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.1 (2026-07-07)
+
+- Shutdown no longer waits on note generation. Processing ran on a
+  non-daemon thread, so stopping the daemon during or just after a meeting
+  hung until systemd's timeout killed the process, and the interrupted
+  meeting sat claimed in `.pending` where nothing would retry it. Now the
+  daemon exits promptly (the unit sets `TimeoutStopSec=15`) and recovers
+  every unfinished meeting at the next boot: recorded-but-unprocessed
+  directories and dead processing claims of any age both resume
+  automatically.
+
 ## 0.15.0 (2026-07-07)
 
 - The jot feature is removed: the TUI input box and `n` binding, the

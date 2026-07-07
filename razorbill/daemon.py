@@ -265,7 +265,9 @@ class Daemon:
         meeting.write_meta(d, meta)
         log.info("meeting ended (%s, %.0f min); processing", app, elapsed / 60)
         self.processing += 1
-        threading.Thread(target=self._process, args=(d,), daemon=False).start()
+        # Daemon thread: shutdown must not wait on note generation (systemd
+        # kills slow stops). Anything cut off is recovered at next boot.
+        threading.Thread(target=self._process, args=(d,), daemon=True).start()
 
     def _process(self, d: Path) -> None:
         try:
@@ -299,6 +301,19 @@ class Daemon:
                 and not self.cfg.deepgram_api_key):
             log.error("live_mode = \"deepgram\" needs deepgram_api_key; "
                       "live transcript is off for this run")
+        # Recover meetings a previous run left unfinished: recorded but never
+        # processed, or claimed by a process that no longer exists. At boot
+        # no other worker can hold a claim, so every claim counts as dead.
+        leftovers = meeting.pending(self.cfg, all_claims=True)
+        if leftovers:
+            log.info("resuming %d unfinished meeting(s) from a previous run", len(leftovers))
+            for d in leftovers:
+                meta = meeting.read_meta(d)
+                meta["status"] = "recorded"  # release any dead claim
+                meeting.write_meta(d, meta)
+                self.processing += 1
+                threading.Thread(target=self._process, args=(d,), daemon=True).start()
+
         if audio.detection_supported():
             log.info("watching for meetings (mic capture by other apps)")
         else:

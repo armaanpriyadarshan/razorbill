@@ -254,8 +254,11 @@ def list_notes(cfg: Config) -> list[dict]:
 STALE_CLAIM_SECONDS = 1800
 
 
-def pending(cfg: Config) -> list[Path]:
-    """Directories awaiting (re)processing: recorded, or claimed by a run that died."""
+def pending(cfg: Config, all_claims: bool = False) -> list[Path]:
+    """Directories awaiting (re)processing: recorded, or claimed by a run that
+    died. With `all_claims`, every processing claim counts as dead, whatever
+    its age; the daemon uses this at boot, when no other worker can be
+    holding one (a shutdown or crash mid-processing left it behind)."""
     root = cfg.pending_dir()
     if not root.exists():
         return []
@@ -273,7 +276,7 @@ def pending(cfg: Config) -> list[Path]:
                 stale = (dt.datetime.now() - claimed).total_seconds() > STALE_CLAIM_SECONDS
             except (KeyError, ValueError):
                 stale = True
-            if stale:
+            if stale or all_claims:
                 out.append(d)
     return out
 
