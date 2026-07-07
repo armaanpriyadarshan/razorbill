@@ -1,0 +1,47 @@
+# razorbill configuration. Copy to ~/.config/razorbill/config.toml
+# Every key is optional; these are the defaults.
+
+# --- bring your own key (any one of the three) -------------------------------
+# 1. environment variable OPENAI_API_KEY  (checked first)
+# 2. api_key = "sk-..."
+# 3. api_key_command = "pass show openai"          # or secret-tool, gopass, ...
+
+api_base = "https://api.openai.com/v1"   # any OpenAI-compatible endpoint works
+
+# Transcription: gpt-4o-transcribe-diarize is the best OpenAI choice: more
+# accurate than whisper-1 at the same price ($0.006/min), with segment
+# timestamps AND speaker labels, so several remote speakers become
+# "Them (A)" / "Them (B)" in the transcript.
+transcribe_model = "gpt-4o-transcribe-diarize"
+#   alternative: "whisper-1"  (word-level timestamps, srt/vtt-capable)
+#
+# Faster and ~9x cheaper: Groq-hosted Whisper is a drop-in.
+#   transcribe_api_base = "https://api.groq.com/openai/v1"
+#   transcribe_api_key  = "gsk_..."
+#   transcribe_model    = "whisper-large-v3-turbo"     # $0.04/hr, 216x realtime
+
+notes_model = "gpt-5"
+# language = "en"                        # optional hint for transcription
+
+# Per-service overrides (blank = use api_base / the main key):
+# transcribe_api_base = "" ; transcribe_api_key = ""
+# notes_api_base = ""      ; notes_api_key = ""
+
+# --- output ------------------------------------------------------------------
+output_dir = "~/Documents/meetings"      # one Markdown file per meeting
+keep_audio = false                       # audio is deleted after transcription
+notify = true                            # desktop notifications (notify-send)
+
+# --- detection / recording ------------------------------------------------------
+echo_cancel = true          # no headphones needed: routes audio through
+                            # PipeWire's echo-cancel while the daemon runs
+min_meeting_seconds = 60    # discard shorter recordings (mic checks, misfires)
+grace_seconds = 20          # mic must be free this long before the meeting "ends"
+max_hours = 4.0             # safety cap per recording
+segment_seconds = 600       # chunk size uploaded to the transcription API
+# ignore_apps = ["OBS"]     # extra apps whose mic use should NOT trigger recording
+# source = ""               # override mic (pactl list sources short)
+# sink = ""                 # override speaker whose monitor is captured
+
+# --- notes ----------------------------------------------------------------------
+# notes_prompt_file = "~/.config/razorbill/prompt.md"   # replace built-in prompt

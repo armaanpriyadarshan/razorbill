@@ -1,0 +1,11 @@
+[Unit]
+Description=razorbill, auto meeting notes
+After=pipewire-pulse.service pipewire.service
+
+[Service]
+ExecStart=%h/.local/bin/razorbill run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
