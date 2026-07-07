@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 (2026-07-07)
+
+- Live transcript in the TUI: while recording, the main screen shows
+  rolling captions from `live.md` and, in Deepgram mode, the sentence
+  currently being spoken (the daemon publishes streaming interims to the
+  runtime dir). Refreshes twice a second; hidden when idle.
+- Install instructions use the GitHub URL directly
+  (`uv tool install git+...`), which is the path that actually works while
+  the package is not on PyPI. Every command and claim in the README was
+  re-verified against a live daemon.
+
 ## 0.8.0 (2026-07-07)
 
 - Deepgram live mode (`live_mode = "deepgram"`, needs `deepgram_api_key`):

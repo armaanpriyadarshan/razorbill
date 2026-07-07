@@ -46,6 +46,24 @@ def write_status(status: dict) -> None:
 
 def clear_status() -> None:
     (runtime_dir() / "status.json").unlink(missing_ok=True)
+    (runtime_dir() / "partial").unlink(missing_ok=True)
+
+
+def write_partial(text: str) -> None:
+    """The utterance currently being spoken (live streaming interims).
+    Lives in the runtime dir (usually tmpfs) because it changes several
+    times a second."""
+    try:
+        (runtime_dir() / "partial").write_text(text)
+    except OSError:
+        pass
+
+
+def read_partial() -> str:
+    try:
+        return (runtime_dir() / "partial").read_text()
+    except OSError:
+        return ""
 
 
 def request_start() -> None:

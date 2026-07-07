@@ -36,15 +36,12 @@ background daemon; notes are plain Markdown files.
 ## Install
 
 ```sh
-uv tool install razorbill-notes    # or: pipx install razorbill-notes
+uv tool install git+https://github.com/armaanpriyadarshan/razorbill
+# or: pipx install git+https://github.com/armaanpriyadarshan/razorbill
 ```
 
-The installed command is `razorbill`. (The name `razorbill` on PyPI belongs
-to an unrelated package.) From source: `git clone
-https://github.com/armaanpriyadarshan/razorbill && cd razorbill && uv tool
-install .`
-
-Requirements: Python 3.11+ and `ffmpeg` on PATH.
+The installed command is `razorbill`. Requirements: Python 3.11+ and
+`ffmpeg` on PATH.
 
 ## Setup
 
@@ -66,8 +63,10 @@ elsewhere).
 
 ## Usage
 
-`razorbill` opens the TUI: live daemon status, a jot box during recording,
-and the note list with a built-in Markdown reader.
+`razorbill` opens the TUI: live daemon status, a jot box, rolling live
+captions during recording (with live mode on, including the sentence
+currently being spoken), copilot output, and the note list with a built-in
+Markdown reader.
 
 | key | action |
 |---|---|

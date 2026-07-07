@@ -103,6 +103,7 @@ class Daemon:
     def _make_partial_sink(self, d: Path):
         def on_partial(text: str) -> None:
             self._partial = text
+            state.write_partial(text)
             if not text:
                 self._partial_kicked_words = 0
                 return
@@ -178,6 +179,7 @@ class Daemon:
             self._rt = None
         self._coach_docs, self._coach_docs_lines = None, 0
         self._partial, self._partial_kicked_words = "", 0
+        state.write_partial("")
         if self._live is not None and self._live.is_alive():
             self._live.join(timeout=60)  # let the last live pass save its cache
         elapsed = time.time() - self.started

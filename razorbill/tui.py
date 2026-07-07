@@ -8,6 +8,7 @@ where the recording daemon itself can't (see README, platform support).
 
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 
@@ -193,6 +194,8 @@ class MainScreen(Screen):
         )
         yield Input(placeholder="jot a note into the meeting (enter to save)", id="jot")
         yield Static("", id="insight")
+        yield Static("live transcript", id="live-section")
+        yield VerticalScroll(Static("", id="live-text"), id="live")
         yield Static("meetings", id="section")
         yield ListView(id="notes")
         yield Static("", id="empty")
@@ -200,10 +203,14 @@ class MainScreen(Screen):
 
     def on_mount(self) -> None:
         self.query_one("#jot").display = False
+        self.query_one("#live-section").display = False
+        self.query_one("#live").display = False
         self._dir_stamp = 0.0
+        self._live_stamp = ("", "")
         self._refresh_status()
         self._refresh_notes()
         self.set_interval(1.0, self._refresh_status)
+        self.set_interval(0.5, self._refresh_live)
         self.set_interval(3.0, self._maybe_refresh_notes)
         self.query_one("#notes", ListView).focus()
 
@@ -216,6 +223,32 @@ class MainScreen(Screen):
         w.update(f"{glyph} {text}")
         self.query_one("#jot").display = css == "recording"
         self._refresh_insight(css)
+
+    def _refresh_live(self) -> None:
+        """Rolling captions while recording: recent utterances from live.md
+        plus the words currently being spoken (streaming interims)."""
+        s = state.read_status()
+        recording = s.get("state") == "recording"
+        lines: list[str] = []
+        if recording:
+            try:
+                raw = (Path(s["dir"]) / meeting.LIVE_MD).read_text()
+                for m in re.finditer(r"\*\*\[(.+?)\]\*\*\s*(.+)", raw):
+                    lines.append(f"[#6f6a5f]{m.group(1)}[/]  {m.group(2)}")
+            except OSError:
+                pass
+        partial = state.read_partial().strip() if recording else ""
+        if partial:
+            lines.append(f"[#6f6a5f italic]{partial} ...[/]")
+
+        stamp = (lines[-1] if lines else "", str(len(lines)))
+        visible = recording and bool(lines)
+        self.query_one("#live-section").display = visible
+        self.query_one("#live").display = visible
+        if visible and stamp != self._live_stamp:
+            self._live_stamp = stamp
+            self.query_one("#live-text", Static).update("\n".join(lines[-40:]))
+            self.query_one("#live", VerticalScroll).scroll_end(animate=False)
 
     def _refresh_insight(self, css: str) -> None:
         """Show the newest proactive insight while a meeting is recording."""
@@ -390,6 +423,18 @@ class RazorbillApp(App):
         height: auto;
         color: #d9a24c;
         border-left: thick #d9a24c;
+    }
+    #live-section {
+        margin: 0 2;
+        color: #8a857a;
+        text-style: bold;
+    }
+    #live {
+        height: 9;
+        margin: 0 2 1 2;
+        padding: 0 1;
+        border-left: thick #33363e;
+        color: #c9c4b8;
     }
     #ask-input {
         margin: 1 2 0 2;
