@@ -9,7 +9,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import context, openai_api, transcript
+from . import context, events, openai_api, transcript
 from .config import Config
 
 META = "meta.json"
@@ -134,12 +134,19 @@ def _process(cfg: Config, api: openai_api.Api, d: Path, meta: dict) -> Path:
 
     jots = (d / JOTS).read_text().strip() if (d / JOTS).exists() else ""
 
+    event_block = events.describe(events.read_event(d))
+
     title, notes_md = "Untitled meeting", ""
     if utterances:
         user_msg = ""
+        if event_block:
+            user_msg += (f"Calendar event for this meeting (use it for the title "
+                         f"and participant names):\n{event_block}\n\n")
         if cfg.context_dirs:
             try:
-                docs = context.gather(cfg, api, transcript_md[:3000])
+                purpose = f"{event_block}\n\n{transcript_md[:3000]}" if event_block \
+                    else transcript_md[:3000]
+                docs = context.gather(cfg, api, purpose)
             except Exception:
                 docs = ""  # background docs are best-effort, never fatal
             if docs:

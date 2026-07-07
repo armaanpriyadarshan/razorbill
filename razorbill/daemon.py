@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import ask, audio, context, deepgram, meeting, openai_api, realtime, state
+from . import ask, audio, context, deepgram, events, meeting, openai_api, realtime, state
 from .config import Config
 from .notify import notify, notify_action
 
@@ -42,6 +42,12 @@ class Daemon:
         self._partial_kicked_words = 0
         self._watchdog_done = False   # per-recording early capture check
         self._last_wall = time.time()
+        self._last_speech = 0.0       # newest live-transcript activity
+        self._silence_notified = False
+        self._await_mic_release = False  # after a silence stop: no new auto
+                                         # recording until the mic is let go once
+        self._ics_cache: list | None = None
+        self._ics_fetched = 0.0
 
     # --- state file ----------------------------------------------------------
     def _write_status(self) -> None:
@@ -69,8 +75,9 @@ class Daemon:
             return
         self.dir = meeting.new_meeting_dir(self.cfg, app)
         self.app = app
-        self.started = self.last_mic_activity = time.time()
+        self.started = self.last_mic_activity = self._last_speech = time.time()
         self._watchdog_done = False
+        self._silence_notified = False
         self.rec.start(self.dir, self.cfg, source, monitor)
         if self.cfg.live_transcript:
             if self.cfg.live_mode == "realtime":
@@ -87,7 +94,25 @@ class Daemon:
                 )
                 self._rt.start()
         log.info("recording started (%s) -> %s", app, self.dir)
+        if self.cfg.calendar_ics_url:
+            threading.Thread(target=self._resolve_event, args=(self.dir,), daemon=True).start()
         threading.Thread(target=self._offer_stop, args=(app,), daemon=True).start()
+
+    def _resolve_event(self, d: Path) -> None:
+        """Look up the calendar event this recording belongs to (cached feed,
+        15 min TTL) and drop it in the meeting directory for every consumer."""
+        try:
+            now = time.time()
+            if self._ics_cache is None or now - self._ics_fetched > 900:
+                self._ics_cache = events.parse(events.fetch(self.cfg.calendar_ics_url))
+                self._ics_fetched = now
+            event = events.current(self._ics_cache)
+            if event and d.exists():
+                events.write_event(d, event)
+                log.info("calendar: %s (%d attendees)",
+                         event["title"] or "untitled", len(event["attendees"]))
+        except Exception as e:
+            log.warning("calendar lookup failed: %s", e)
 
     def _make_line_sink(self, d: Path):
         lock = threading.Lock()
@@ -99,6 +124,8 @@ class Daemon:
                 f.write(f"**{head}** {text}\n\n")
             self._partial = ""
             self._partial_kicked_words = 0
+            self._last_speech = time.time()
+            self._silence_notified = False
             if self.cfg.live_insights:
                 self._coach_kick(d)
 
@@ -111,6 +138,8 @@ class Daemon:
             if not text:
                 self._partial_kicked_words = 0
                 return
+            self._last_speech = time.time()
+            self._silence_notified = False
             # react mid-utterance once enough new words accumulate; the
             # coalescing worker absorbs the extra kicks
             words = text.count(" ") + 1
@@ -147,20 +176,24 @@ class Daemon:
                     md = (d / meeting.LIVE_MD).read_text()
                 if self._partial:
                     md += f"**[now, being said]** {self._partial}\n\n"
-                self._insight_pass(d, md, docs=self._coach_context(md))
+                event = events.describe(events.read_event(d))
+                self._insight_pass(d, md, docs=self._coach_context(md, event),
+                                   event=event)
             except Exception as e:
                 log.warning("copilot pass failed: %s", e)
 
-    def _coach_context(self, transcript_md: str) -> str:
+    def _coach_context(self, transcript_md: str, event: str = "") -> str:
         """Background-document selection, cached and refreshed as the
-        conversation grows so the per-utterance path is one chat call."""
+        conversation grows so the per-utterance path is one chat call.
+        The calendar event steers selection: attendee and company names
+        often match brain documents before anyone says them out loud."""
         if not self.cfg.context_dirs:
             return ""
         lines = transcript_md.count("**[")
         if self._coach_docs is None or lines - self._coach_docs_lines >= 10:
             try:
-                self._coach_docs = context.gather(self.cfg, self.api,
-                                                  transcript_md[-3000:],
+                purpose = f"{event}\n\n{transcript_md[-3000:]}" if event else transcript_md[-3000:]
+                self._coach_docs = context.gather(self.cfg, self.api, purpose,
                                                   limit=ask.COACH_DOC_CHARS)
                 self._coach_docs_lines = lines
             except Exception as e:
@@ -177,6 +210,12 @@ class Daemon:
             log.info("echo cancellation reloaded")
         else:
             log.warning("echo-cancel reload failed; recording without it")
+
+    def _offer_silence_stop(self) -> None:
+        if notify_action(self.cfg.notify, "Still recording",
+                         "Nobody has spoken for 3 minutes. Meeting over?",
+                         "stop", "Stop", wait_seconds=120):
+            state.request_stop()
 
     def _offer_stop(self, app: str) -> None:
         if notify_action(self.cfg.notify, "Recording meeting",
@@ -299,9 +338,15 @@ class Daemon:
 
         if self.dir is None:
             if manual_start:
+                self._await_mic_release = False
                 self._start(MANUAL)
             elif apps:
-                self._start(apps[0])
+                if not self._await_mic_release:
+                    self._start(apps[0])
+                # else: a silence stop already ended this mic session; wait
+                # for the app to release the mic before trusting it again
+            else:
+                self._await_mic_release = False
             return
 
         # recording: check the stop conditions
@@ -330,6 +375,25 @@ class Daemon:
                 self._finish()
                 return
 
+        # Silence handling (live mode only: the stream is the speech signal).
+        # Meeting apps can hold the microphone long after a call ends (a
+        # rejoin page left open), which keeps mic-based detection alive
+        # forever. Sustained silence is the truer end-of-meeting signal:
+        # offer a stop at 3 minutes, stop at silence_stop_minutes.
+        if self._rt is not None and self.cfg.silence_stop_minutes > 0:
+            quiet = now - self._last_speech
+            if not self._silence_notified and quiet > 180:
+                self._silence_notified = True
+                threading.Thread(target=self._offer_silence_stop, daemon=True).start()
+            if quiet > self.cfg.silence_stop_minutes * 60:
+                log.info("no speech for %.0f min; ending the meeting", quiet / 60)
+                notify(self.cfg.notify, "Recording stopped",
+                       f"No speech for {quiet / 60:.0f} minutes. Notes are on the way. "
+                       f"A new recording starts when the mic is released and used again.")
+                self._await_mic_release = True
+                self._finish()
+                return
+
         if (self.cfg.live_transcript and self.cfg.live_mode == "segments"
                 and (self._live is None or not self._live.is_alive())):
             self._live = threading.Thread(target=self._live_pass, args=(self.dir,), daemon=True)
@@ -354,10 +418,12 @@ class Daemon:
         except Exception as e:  # the final processing pass will catch up
             log.warning("live pass failed: %s", e)
 
-    def _insight_pass(self, d: Path, transcript_md: str, docs: str | None = None) -> None:
+    def _insight_pass(self, d: Path, transcript_md: str, docs: str | None = None,
+                      event: str = "") -> None:
         insights = d / meeting.INSIGHTS_MD
         prior = insights.read_text() if insights.exists() else ""
-        reply = ask.insight(self.cfg, self.api, transcript_md, prior, docs=docs)
+        reply = ask.insight(self.cfg, self.api, transcript_md, prior,
+                            docs=docs, event=event)
         if not reply or not d.exists():  # meeting may have ended mid-pass
             return
         stamp = dt.datetime.now().strftime("%H:%M")

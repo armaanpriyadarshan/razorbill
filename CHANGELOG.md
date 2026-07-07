@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.0 (2026-07-07)
+
+- Silence ends the meeting. Meeting apps can hold the microphone after a
+  call (a rejoin page left open), which kept mic-based detection recording
+  a silent room. In live mode, no speech for 3 minutes raises an
+  actionable warning notification and `silence_stop_minutes` (default 10)
+  ends the meeting; a new recording waits until the mic has been released
+  once, so a lingering rejoin tab cannot restart it.
+- Calendar awareness (`calendar_ics_url`): point it at a read-only ICS
+  feed and each recording resolves the event it belongs to. The event's
+  title, attendees, and description ground the copilot, `razorbill ask`,
+  note generation (including the note title), and background-document
+  selection, so brain documents about the people on the call are in play
+  from the first minute. Common recurrence rules supported.
+
 ## 0.11.1 (2026-07-07)
 
 - Hotfix: the capture watchdog added in 0.10.0 killed healthy recordings

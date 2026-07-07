@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import context, meeting, openai_api, state
+from . import context, events, meeting, openai_api, state
 from .config import Config
 
 LIVE_MD = "live.md"
@@ -23,6 +23,9 @@ def answer(cfg: Config, api: openai_api.Api, question: str) -> str:
 
     s = state.read_status()
     if s.get("state") == "recording":
+        block = events.describe(events.read_event(Path(s["dir"])))
+        if block:
+            parts.append(f"Calendar event for this meeting:\n{block}")
         live = Path(s["dir"]) / LIVE_MD
         transcript = live.read_text().strip() if live.exists() else ""
         if transcript:
@@ -74,13 +77,16 @@ now, reply with exactly: SILENT
 
 
 def insight(cfg: Config, api: openai_api.Api, transcript_md: str, prior: str,
-            docs: str | None = None) -> str:
+            docs: str | None = None, event: str = "") -> str:
     """One copilot pass over the live transcript. Returns "" when silent.
 
     `docs` lets the caller reuse a cached background-document selection;
     None gathers fresh (adds a selection call for large collections).
+    `event` is the calendar block for this meeting, when known.
     """
     parts = []
+    if event:
+        parts.append(f"Calendar event for this meeting:\n{event}")
     if docs is None:
         docs = context.gather(cfg, api, transcript_md[-3000:], limit=COACH_DOC_CHARS)
     if docs:

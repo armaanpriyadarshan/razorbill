@@ -130,6 +130,17 @@ On top of the rolling transcript:
   knowledge base, project docs). They ground note generation, `ask`, and
   insights. Small collections are injected whole; larger ones go through a
   selection step where the model picks the relevant files from an index.
+- `calendar_ics_url` points at a read-only ICS feed (Google Calendar's
+  "Secret address in iCal format", or an Outlook published calendar). When
+  a recording starts, the current event's title, attendees, and
+  description are resolved and ground everything above, plus the note
+  title. Attendee and company names steer background-document selection
+  before anyone says them out loud.
+- Meeting apps can hold the microphone after a call ends (a rejoin page
+  left open), which would keep mic-based detection recording forever. In
+  live mode, sustained silence ends the meeting instead: an actionable
+  warning at 3 minutes, a stop at `silence_stop_minutes` (default 10), and
+  no new recording until the mic is released once.
 
 Cost: realtime transcription is billed per audio minute for the duration of
 the meeting; the copilot adds roughly one chat call per utterance during

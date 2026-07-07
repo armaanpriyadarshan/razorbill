@@ -43,6 +43,9 @@ One module per concern, all under `razorbill/`:
   collections go in whole, large ones through index-based selection.
 - `ask.py`: prompts and assembly for `razorbill ask` and the copilot
   (`insight`); grounded in `context.py` output.
+- `events.py`: ICS calendar feed parsing and current-event resolution
+  (common recurrence rules only); the event grounds copilot, ask, notes,
+  and document selection.
 - `transcript.py`: merge the me/them channels by timestamp, drop silence
   hallucinations and echo duplicates.
 - `meeting.py`: post-meeting pipeline (transcribe, merge, generate,

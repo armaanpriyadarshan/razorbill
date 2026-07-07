@@ -94,7 +94,13 @@ class Config:
                                      # falls back to notes_model (higher latency)
     insight_priority: bool = False   # OpenAI priority service tier for copilot
                                      # passes: lower latency, higher price
+    silence_stop_minutes: float = 10.0  # end the meeting after this long with no
+                                        # speech in the live transcript (0 = off);
+                                        # covers apps that hold the mic after a call
     context_dirs: list[str] = field(default_factory=list)  # background docs for notes/ask/insights
+    calendar_ics_url: str = ""       # read-only ICS feed; the current event's
+                                     # title/attendees/description ground the
+                                     # copilot, ask, notes, and doc selection
 
     # --- notes ---
     notes_prompt_file: str = ""      # replace the built-in prompt

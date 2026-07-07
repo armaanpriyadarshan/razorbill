@@ -57,7 +57,12 @@ realtime_model = "gpt-realtime-whisper"
 live_insights = false       # copilot pass on every live utterance
 # insight_model = "gpt-5.4-mini"          # faster model for copilot passes; empty uses notes_model
 # insight_priority = true                 # OpenAI priority tier for copilot passes (costs more)
+silence_stop_minutes = 10.0 # end the meeting after this long with no speech
+                            # (apps can hold the mic after a call); 0 = off
 # context_dirs = ["~/notes/company"]   # background docs for notes, ask, and insights
+# calendar_ics_url = "https://calendar.google.com/calendar/ical/.../basic.ics"
+#   read-only ICS feed; the current event's title, attendees, and description
+#   ground the copilot, ask, notes, and document selection
 
 # --- notes ----------------------------------------------------------------------
 # notes_prompt_file = "~/.config/razorbill/prompt.md"   # replace built-in prompt
