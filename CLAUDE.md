@@ -5,8 +5,8 @@ name `razorbill-notes`, command `razorbill`.
 
 ## Commands
 
-- `uv sync` sets up the dev environment, `uv run pytest` runs tests,
-  `uv build` builds sdist and wheel.
+- `uv sync` sets up the dev environment, `uv build` builds sdist and
+  wheel. The test suite is not part of the public repository.
 - `razorbill status --json` prints daemon state; `start`/`stop`/`toggle`/
   `note "text"` control it non-interactively; `last` prints the newest
   note path. Notes are Markdown files in `output_dir`
@@ -41,4 +41,3 @@ One module per concern, all under `razorbill/`:
   language, no em dashes.
 - Every subprocess call has a timeout and failure path; the daemon must
   survive any API or audio failure (log, notify, keep audio, continue).
-- Test before committing: `uv run pytest`.

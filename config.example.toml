@@ -20,7 +20,7 @@ transcribe_model = "gpt-4o-transcribe-diarize"
 #   transcribe_api_key  = "gsk_..."
 #   transcribe_model    = "whisper-large-v3-turbo"     # $0.04/hr, 216x realtime
 
-notes_model = "gpt-5"
+notes_model = "gpt-5.5"
 # language = "en"                        # optional hint for transcription
 
 # Per-service overrides (blank = use api_base / the main key):

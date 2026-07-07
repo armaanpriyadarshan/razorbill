@@ -55,7 +55,7 @@ class Config:
     api_key: str = ""            # or env OPENAI_API_KEY, or api_key_command
     api_key_command: str = ""    # e.g. "pass show openai" / "secret-tool lookup ..."
     transcribe_model: str = "gpt-4o-transcribe-diarize"
-    notes_model: str = "gpt-5"
+    notes_model: str = "gpt-5.5"
     language: str = ""           # optional ISO-639-1 hint for transcription
     # Optional per-service overrides, so transcription can use a different
     # (e.g. faster) OpenAI-compatible provider than note generation:

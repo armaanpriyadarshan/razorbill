@@ -83,11 +83,12 @@ class NoteScreen(Screen):
         except OSError as e:
             text = f"could not read {self.path}: {e}"
         yield VerticalScroll(Markdown(text), id="note-scroll")
+        yield Static("", id="flash")
         yield Footer()
 
     def action_open_editor(self) -> None:
         state.open_path(self.path)
-        self.notify(f"opened {self.path.name}")
+        self.app.flash(f"opened {self.path.name}")
 
 
 class SetupScreen(Screen):
@@ -96,9 +97,10 @@ class SetupScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Vertical(
             Static(ART, id="setup-art"),
-            Static("razorbill needs an OpenAI API key to transcribe meetings\n"
-                   "and write notes. It is stored in ~/.config/razorbill/config.toml\n"
-                   "with owner-only permissions, and used for nothing else.", id="setup-blurb"),
+            Static("razorbill needs an API key for transcription and note generation.\n"
+                   "The default endpoint is api.openai.com; any OpenAI-compatible\n"
+                   "endpoint works (api_base in the config). The key is stored in\n"
+                   "~/.config/razorbill/config.toml with owner-only permissions.", id="setup-blurb"),
             Input(placeholder="sk-...", password=True, id="key-input"),
             Static("", id="setup-msg"),
             id="setup-box",
@@ -125,8 +127,8 @@ class SetupScreen(Screen):
             return
         path = config.save_api_key(key)
         self.app.cfg = config.load()
-        self.notify(f"key saved to {path}")
         self.app.pop_screen()
+        self.app.flash(f"key saved to {path}")
 
 
 class MainScreen(Screen):
@@ -148,6 +150,7 @@ class MainScreen(Screen):
                 Static("razorbill", id="wordmark"),
                 Static(TAGLINE, id="tagline"),
                 Static("", id="status"),
+                Static("", id="flash"),
                 id="masthead",
             ),
             id="header",
@@ -224,11 +227,11 @@ class MainScreen(Screen):
     def action_open_editor(self) -> None:
         if path := self._selected():
             state.open_path(path)
-            self.notify(f"opened {path.name}")
+            self.app.flash(f"opened {path.name}")
 
     def action_jot(self) -> None:
         if state.read_status().get("state") != "recording":
-            self.notify("no meeting is being recorded", severity="warning")
+            self.app.flash("no meeting is being recorded", "warn")
             return
         self.query_one("#jot", Input).focus()
 
@@ -237,41 +240,41 @@ class MainScreen(Screen):
         event.input.value = ""
         self.query_one("#notes", ListView).focus()
         if text and state.add_jot(text):
-            self.notify("noted")
+            self.app.flash("noted")
         elif text:
-            self.notify("the meeting ended before the jot landed", severity="warning")
+            self.app.flash("the meeting ended before the jot landed", "warn")
 
     def action_record(self) -> None:
         s = state.read_status().get("state")
         if s == "off":
-            self.notify("the daemon isn't running", severity="warning")
+            self.app.flash("the daemon isn't running", "warn")
         elif s == "recording":
             state.request_stop()
-            self.notify("stopping · notes on the way")
+            self.app.flash("stopping")
         else:
             state.request_start()
-            self.notify("recording starts in a moment")
+            self.app.flash("starting")
 
     def action_reprocess(self) -> None:
         pending = meeting.pending(self.app.cfg)
         if not pending:
-            self.notify("nothing pending")
+            self.app.flash("nothing pending")
             return
-        self.notify(f"reprocessing {len(pending)} meeting(s) in the background")
+        self.app.flash(f"reprocessing {len(pending)} meeting(s)")
         self.run_worker(lambda: self._reprocess(pending), thread=True)
 
     def _reprocess(self, dirs: list[Path]) -> None:
         try:
             api = openai_api.resolve(self.app.cfg)
         except openai_api.ApiError as e:
-            self.app.call_from_thread(self.notify, str(e), severity="error")
+            self.app.call_from_thread(self.app.flash, str(e), "warn")
             return
         for d in dirs:
             try:
                 out = meeting.process(self.app.cfg, api, d)
-                self.app.call_from_thread(self.notify, f"notes written: {out.name}")
+                self.app.call_from_thread(self.app.flash, f"notes written: {out.name}")
             except Exception as e:
-                self.app.call_from_thread(self.notify, f"{d.name}: {e}", severity="error")
+                self.app.call_from_thread(self.app.flash, f"{d.name}: {e}", "warn")
 
 
 class RazorbillApp(App):
@@ -302,6 +305,14 @@ class RazorbillApp(App):
     #tagline {
         color: #8a857a;
     }
+    #flash {
+        height: 1;
+        margin-top: 1;
+        color: #8a857a;
+        text-style: italic;
+    }
+    #flash.flash-warn { color: #d9a24c; }
+    NoteScreen #flash { margin: 0 3; }
     #status {
         margin-top: 1;
         color: #8a857a;
@@ -368,17 +379,36 @@ class RazorbillApp(App):
     Footer {
         background: #1b1d23;
     }
-    Toast { background: #23252c; }
     """
 
     def __init__(self) -> None:
         super().__init__()
         self.cfg = config.load()
+        self._flash_timer = None
 
     def on_mount(self) -> None:
         self.push_screen(MainScreen())
         if not self.cfg.resolve_key():
             self.push_screen(SetupScreen())
+
+    def flash(self, text: str, style: str = "info") -> None:
+        """One quiet line of feedback on the current screen. Replaces toasts."""
+        try:
+            w = self.screen.query_one("#flash", Static)
+        except Exception:
+            return
+        w.set_classes(f"flash-{style}")
+        w.update(text)
+        if self._flash_timer is not None:
+            self._flash_timer.stop()
+        self._flash_timer = self.set_timer(3.0, lambda: self._clear_flash(w))
+
+    def _clear_flash(self, w: Static) -> None:
+        self._flash_timer = None
+        try:
+            w.update("")
+        except Exception:
+            pass
 
 
 def run() -> None:

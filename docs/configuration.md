@@ -17,7 +17,7 @@ loudly instead of silently doing nothing.
 | `api_key_command` | empty | A shell command that prints the key, for example `pass show openai`. Used when neither the environment variable nor `api_key` is set. |
 | `api_base` | `https://api.openai.com/v1` | Any OpenAI-compatible endpoint works. |
 | `transcribe_model` | `gpt-4o-transcribe-diarize` | Needs segment timestamps to be useful. `whisper-1` also works and adds word-level timestamps. Models that return plain text with no timing degrade the transcript ordering. |
-| `notes_model` | `gpt-5` | The chat model that writes the note. |
+| `notes_model` | `gpt-5.5` | The chat model that writes the note. |
 | `language` | empty | Optional ISO 639-1 hint for transcription, for example `en`. |
 | `transcribe_api_base`, `transcribe_api_key` | empty | Override the endpoint or key for transcription only. Empty means use `api_base` and the main key. |
 | `notes_api_base`, `notes_api_key` | empty | Same, for note generation. |

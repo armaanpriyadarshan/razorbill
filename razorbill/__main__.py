@@ -123,8 +123,8 @@ def cmd_reprocess(_args) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(
         prog="razorbill",
-        description="Meeting transcription and notes from system audio, using your own "
-                    "OpenAI-compatible API key. No arguments opens the TUI.",
+        description="Meeting transcription and notes from system audio, with your own "
+                    "API key. No arguments opens the TUI.",
     )
     p.add_argument("-V", "--version", action="version", version=f"razorbill {__version__}")
     sub = p.add_subparsers(dest="cmd")
