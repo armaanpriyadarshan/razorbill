@@ -68,14 +68,19 @@ def _concat(paths: list[Path], limit: int = MAX_CONTEXT_CHARS) -> str:
     return "\n\n".join(parts)
 
 
-def gather(cfg: Config, api: openai_api.Api, purpose: str) -> str:
-    """Return background-document text relevant to `purpose`, or ""."""
+def gather(cfg: Config, api: openai_api.Api, purpose: str,
+           limit: int = MAX_CONTEXT_CHARS) -> str:
+    """Return background-document text relevant to `purpose`, or "".
+
+    `limit` caps the injected text; latency-sensitive callers (the live
+    copilot) pass a small one since prefill time scales with input.
+    """
     candidates = files(cfg)
     if not candidates:
         return ""
     sizes = {p: p.stat().st_size for p in candidates}
     if sum(sizes.values()) <= INJECT_ALL_UNDER:
-        return _concat(candidates)
+        return _concat(candidates, limit)
 
     listing = "\n".join(
         f"{i}: {p.name}  {_title(p)}" for i, p in enumerate(candidates)
@@ -90,4 +95,4 @@ def gather(cfg: Config, api: openai_api.Api, purpose: str) -> str:
         chosen = [candidates[i] for i in picks if 0 <= i < len(candidates)]
     except (openai_api.ApiError, ValueError):
         return ""
-    return _concat(chosen)
+    return _concat(chosen, limit)

@@ -1,6 +1,6 @@
 [project]
 name = "razorbill-notes"
-version = "0.7.0"
+version = "0.7.1"
 description = "Meeting transcription and notes from system audio. TUI, CLI, and daemon; bring your own key."
 readme = "README.md"
 license = "MIT"

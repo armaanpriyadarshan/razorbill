@@ -124,7 +124,8 @@ class Daemon:
         if self._coach_docs is None or lines - self._coach_docs_lines >= 10:
             try:
                 self._coach_docs = context.gather(self.cfg, self.api,
-                                                  transcript_md[-3000:])
+                                                  transcript_md[-3000:],
+                                                  limit=ask.COACH_DOC_CHARS)
                 self._coach_docs_lines = lines
             except Exception as e:
                 log.warning("context selection failed: %s", e)

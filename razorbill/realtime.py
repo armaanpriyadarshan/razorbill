@@ -98,11 +98,14 @@ class Realtime:
             self.proc = self._spawn_ffmpeg()
         ws = WebSocket(_ws_url(self.api.transcribe_base),
                        {"Authorization": f"Bearer {self.api.transcribe_key}"},
-                       timeout=6)  # short timeout doubles as the flush tick
+                       timeout=15)
+        ws.set_timeout(1.0)  # post-handshake: recv doubles as the flush tick
         # Utterance assembly. The GA endpoint streams word deltas per item;
         # a "completed" event is not guaranteed (gpt-realtime-whisper emits
         # none), so deltas are the source of truth. A buffered utterance is
         # flushed when a new item starts, on inactivity, or at shutdown.
+        # Deltas for one utterance arrive in a burst, so a short idle window
+        # is safe; it bounds how stale a finished utterance can sit buffered.
         item_id: str | None = None
         buffer = ""
         last_delta = time.monotonic()
@@ -130,7 +133,7 @@ class Realtime:
                 try:
                     event = json.loads(ws.recv_text())
                 except TimeoutError:
-                    if buffer and time.monotonic() - last_delta > 3.0:
+                    if buffer and time.monotonic() - last_delta > 1.2:
                         flush()
                     continue
                 kind = event.get("type", "")

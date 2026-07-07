@@ -8,6 +8,7 @@ from . import context, meeting, openai_api, state
 from .config import Config
 
 LIVE_MD = "live.md"
+COACH_DOC_CHARS = 8_000  # copilot doc budget; prefill time scales with input
 
 SYSTEM = """\
 You answer questions about a meeting. You get background documents (when
@@ -77,12 +78,13 @@ def insight(cfg: Config, api: openai_api.Api, transcript_md: str, prior: str,
     """
     parts = []
     if docs is None:
-        docs = context.gather(cfg, api, transcript_md[-3000:])
+        docs = context.gather(cfg, api, transcript_md[-3000:], limit=COACH_DOC_CHARS)
     if docs:
         parts.append(f"Background documents:\n\n{docs}")
-    parts.append(f"Transcript so far:\n\n{transcript_md[-8000:]}")
+    parts.append(f"Transcript so far:\n\n{transcript_md[-4000:]}")
     parts.append(f"Already sent to Me (never repeat or rephrase these):\n"
                  f"{prior[-2000:] or 'nothing yet'}")
     reply = openai_api.chat(cfg, api, INSIGHT_SYSTEM, "\n\n".join(parts),
-                            model=cfg.insight_model).strip()
+                            model=cfg.insight_model,
+                            priority=cfg.insight_priority).strip()
     return "" if not reply or reply.upper().startswith(("SILENT", "NONE")) else reply

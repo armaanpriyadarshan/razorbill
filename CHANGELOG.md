@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.1 (2026-07-06)
+
+- Live latency work. Utterance flush now runs on a 1 second receive tick
+  with a 1.2 second idle window (finished utterances reached `live.md`
+  around 2 seconds after speech ends in testing, down from about 6). The
+  WebSocket frame parser consumes nothing until a frame is fully buffered,
+  so the short tick cannot corrupt the stream.
+- Copilot passes send a trimmed prompt (8 KB document budget, 4 KB
+  transcript tail); measured pass time dropped from about 4.5 to 2.6
+  seconds on the default model.
+- `insight_priority` requests OpenAI's priority service tier for copilot
+  passes (higher price; made no measurable difference at this payload size
+  in testing, so it is off by default).
+
 ## 0.7.0 (2026-07-06)
 
 - The insight interval is gone. The live copilot now runs on every

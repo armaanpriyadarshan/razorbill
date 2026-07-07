@@ -74,7 +74,8 @@ the diarizing model still labels the speakers it hears.
 | `live_mode` | `realtime` | `realtime` streams audio to the provider's `/v1/realtime` WebSocket; lines land within seconds. `segments` batch-transcribes each finished segment instead (lag up to one segment length; results cached in `live.json` and reused by final processing). |
 | `realtime_model` | `gpt-realtime-whisper` | Transcription model for the realtime stream. |
 | `live_insights` | `false` | Copilot pass on every live utterance: suggested answers, one-line explanations of things just mentioned, follow-up questions, or silence. Passes coalesce (one in flight, latest transcript wins), so cost scales with conversation activity. Needs `live_transcript`. |
-| `insight_model` | empty | Chat model for copilot passes. Empty uses `notes_model`; a non-reasoning model such as `gpt-5.3-chat-latest` shaves a second or two per pass. |
+| `insight_model` | empty | Chat model for copilot passes. Empty uses `notes_model`; a non-reasoning model such as `gpt-5.3-chat-latest` shaves a little time per pass. |
+| `insight_priority` | `false` | Request OpenAI's priority service tier for copilot passes. Costs more; only worth testing if copilot latency matters to you. |
 | `context_dirs` | `[]` | Directories of `.md`/`.txt` background documents used by note generation, `razorbill ask`, and insights. Under about 40 KB total they are injected whole; above that, a selection call picks up to six relevant files from an index. Hidden directories are skipped. |
 
 ## Notes

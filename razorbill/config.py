@@ -88,6 +88,8 @@ class Config:
     live_insights: bool = False      # copilot pass on every live utterance
     insight_model: str = ""          # fast chat model for copilot passes; empty
                                      # falls back to notes_model (higher latency)
+    insight_priority: bool = False   # OpenAI priority service tier for copilot
+                                     # passes: lower latency, higher price
     context_dirs: list[str] = field(default_factory=list)  # background docs for notes/ask/insights
 
     # --- notes ---
