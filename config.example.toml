@@ -50,8 +50,10 @@ live_mode = "realtime"      # "realtime": OpenAI websocket stream, text within s
                             # "deepgram": interim results mid-sentence (needs key below)
                             # "segments": per-segment batch calls (one lag per segment)
 realtime_model = "gpt-realtime-whisper"
-# deepgram_api_key = "..."   # for live_mode = "deepgram" (interim results mid-sentence)
+# deepgram_api_key = "..."   # for live_mode = "deepgram" (interim results mid-sentence,
+                              # live Me/Them labels via channel separation)
 # deepgram_model = "nova-3"
+# deepgram_diarize = true     # split remote voices into Them (A)/(B) live
 live_insights = false       # copilot pass on every live utterance
 # insight_model = "gpt-5.4-mini"          # faster model for copilot passes; empty uses notes_model
 # insight_priority = true                 # OpenAI priority tier for copilot passes (costs more)

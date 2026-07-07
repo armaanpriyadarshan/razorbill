@@ -96,7 +96,11 @@ Two implementations, selected by `live_mode`:
   default; needs `deepgram_api_key`). Deepgram sends interim results while
   a sentence is still being spoken, so the copilot can react to a question
   before it ends; finalized utterances land in the transcript on
-  endpointing, a few hundred milliseconds after a pause.
+  endpointing, a few hundred milliseconds after a pause. With a
+  system-audio device, the two sides are sent as separate channels, so
+  live transcript lines are labeled Me and Them by construction, and voice
+  diarization (`deepgram_diarize`) splits multiple remote speakers into
+  Them (A), Them (B). Multichannel audio bills each channel's minutes.
 - `segments`: each recorded audio segment is batch-transcribed as it
   completes, so the transcript lags by up to one segment length. Works with
   any OpenAI-compatible endpoint; segment results are cached and re-used by

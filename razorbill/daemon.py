@@ -92,10 +92,11 @@ class Daemon:
     def _make_line_sink(self, d: Path):
         lock = threading.Lock()
 
-        def on_line(text: str) -> None:
+        def on_line(text: str, label: str = "") -> None:
             stamp = time.strftime("%H:%M:%S")
+            head = f"[{stamp}] {label}:" if label else f"[{stamp}]"
             with lock, (d / meeting.LIVE_MD).open("a") as f:
-                f.write(f"**[{stamp}]** {text}\n\n")
+                f.write(f"**{head}** {text}\n\n")
             self._partial = ""
             self._partial_kicked_words = 0
             if self.cfg.live_insights:

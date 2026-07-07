@@ -235,8 +235,10 @@ class MainScreen(Screen):
         if recording:
             try:
                 raw = (Path(s["dir"]) / meeting.LIVE_MD).read_text()
-                for m in re.finditer(r"\*\*\[(.+?)\]\*\*\s*(.+)", raw):
-                    lines.append(f"[#6f6a5f]{m.group(1)}[/]  {m.group(2)}")
+                for m in re.finditer(r"\*\*\[(.+?)\](?:\s+([^*]+?))?\*\*\s*(.+)", raw):
+                    stamp, label, text = m.group(1), m.group(2), m.group(3)
+                    who = f"[bold]{label}[/] " if label else ""
+                    lines.append(f"[#6f6a5f]{stamp}[/]  {who}{text}")
             except OSError:
                 pass
         partial = state.read_partial().strip() if recording else ""

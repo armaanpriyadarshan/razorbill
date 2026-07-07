@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0 (2026-07-07)
+
+- Live speaker labels in Deepgram mode. With a system-audio device, the
+  live stream sends stereo (mic left, system audio right) with
+  multichannel results, so every live utterance is attributed to Me or
+  Them by construction rather than inferred. Voice diarization
+  (`deepgram_diarize`, on by default) splits several remote speakers into
+  Them (A), Them (B). Labels appear in `live.md`, the TUI captions, and
+  the copilot's input, which makes its "Them just asked Me" trigger
+  reliable. Multichannel audio bills each channel's minutes.
+
 ## 0.10.0 (2026-07-07)
 
 - Suspend recovery. A recording daemon that lives across laptop suspend

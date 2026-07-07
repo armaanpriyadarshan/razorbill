@@ -88,6 +88,7 @@ class Config:
     realtime_model: str = "gpt-realtime-whisper"
     deepgram_api_key: str = ""       # required for live_mode = "deepgram"
     deepgram_model: str = "nova-3"
+    deepgram_diarize: bool = True    # split remote voices into Them (A)/(B) live
     live_insights: bool = False      # copilot pass on every live utterance
     insight_model: str = ""          # fast chat model for copilot passes; empty
                                      # falls back to notes_model (higher latency)

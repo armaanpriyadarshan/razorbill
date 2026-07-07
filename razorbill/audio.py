@@ -194,6 +194,21 @@ def mixed_pcm(source: str, monitor: str, rate: int = 24000) -> subprocess.Popen:
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
 
+def stereo_pcm(source: str, monitor: str, rate: int = 24000) -> subprocess.Popen:
+    """One ffmpeg with mic on the left channel and system audio on the right,
+    stereo pcm16 on stdout. Keeping the sides on separate channels lets a
+    multichannel transcription API attribute speech to Me vs Them exactly."""
+    fc = (f"[0:a]aresample={rate},aformat=channel_layouts=mono[L];"
+          f"[1:a]aresample={rate},aformat=channel_layouts=mono[R];"
+          "[L][R]join=inputs=2:channel_layout=stereo[out]")
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error",
+           *_input_args(source), *_input_args(monitor),
+           "-filter_complex", fc, "-map", "[out]",
+           "-ar", str(rate), "-f", "s16le", "pipe:1"]
+    return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+
 class Recorder:
     """One ffmpeg process per channel: mic ("me") and system audio ("them").
 

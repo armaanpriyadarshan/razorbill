@@ -32,7 +32,9 @@ One module per concern, all under `razorbill/`:
   Utterances are assembled from deltas; a "completed" event is not
   guaranteed, so flushes happen on item change, idle, and shutdown.
 - `deepgram.py`: streaming transcription over Deepgram `/v1/listen` with
-  interim results; `handle()` is pure and unit-tested.
+  interim results. Stereo multichannel when a system-audio device exists
+  (mic left, system right) for live Me/Them labels, plus voice diarization
+  for Them (A)/(B); `handle()` is pure and unit-tested.
 - `state.py`: file-based IPC in `$XDG_RUNTIME_DIR/razorbill/` shared by
   daemon, CLI, and TUI (status.json, start-request and stop marker files).
 - `openai_api.py`: stdlib HTTP client for `/audio/transcriptions` and
