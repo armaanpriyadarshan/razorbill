@@ -82,9 +82,12 @@ class Config:
 
     # --- live mode ---
     live_transcript: bool = False    # rolling transcript during the meeting (live.md)
-    live_mode: str = "realtime"      # "realtime" (websocket stream, ~1-2s lag)
+    live_mode: str = "realtime"      # "realtime" (OpenAI websocket, ~1-2s lag),
+                                     # "deepgram" (interim results mid-sentence),
                                      # or "segments" (per-segment batch calls)
     realtime_model: str = "gpt-realtime-whisper"
+    deepgram_api_key: str = ""       # required for live_mode = "deepgram"
+    deepgram_model: str = "nova-3"
     live_insights: bool = False      # copilot pass on every live utterance
     insight_model: str = ""          # fast chat model for copilot passes; empty
                                      # falls back to notes_model (higher latency)

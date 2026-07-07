@@ -69,16 +69,7 @@ class Realtime:
     # --- internals -------------------------------------------------------
 
     def _spawn_ffmpeg(self) -> subprocess.Popen:
-        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error",
-               *audio._input_args(self.source)]
-        if self.monitor:
-            # normalize=0: keep both inputs at full amplitude (the default
-            # halves each, which starves the far end's VAD of signal)
-            cmd += [*audio._input_args(self.monitor),
-                    "-filter_complex", "amix=inputs=2:duration=longest:normalize=0"]
-        cmd += ["-ac", "1", "-ar", "24000", "-f", "s16le", "pipe:1"]
-        return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        return audio.mixed_pcm(self.source, self.monitor)
 
     def _run(self) -> None:
         backoff = 2.0

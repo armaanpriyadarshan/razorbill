@@ -151,6 +151,9 @@ class WebSocket:
     def send_text(self, text: str) -> None:
         self._send_frame(0x1, text.encode())
 
+    def send_binary(self, data: bytes) -> None:
+        self._send_frame(0x2, data)
+
     def close(self) -> None:
         try:
             self._send_frame(0x8, struct.pack(">H", 1000))

@@ -71,8 +71,10 @@ the diarizing model still labels the speakers it hears.
 | option | default | notes |
 |---|---|---|
 | `live_transcript` | `false` | Maintain a rolling transcript in `live.md` in the meeting directory during the meeting. |
-| `live_mode` | `realtime` | `realtime` streams audio to the provider's `/v1/realtime` WebSocket; lines land within seconds. `segments` batch-transcribes each finished segment instead (lag up to one segment length; results cached in `live.json` and reused by final processing). |
-| `realtime_model` | `gpt-realtime-whisper` | Transcription model for the realtime stream. |
+| `live_mode` | `realtime` | `realtime` streams audio to the provider's `/v1/realtime` WebSocket; lines land within seconds. `deepgram` streams to Deepgram instead and adds interim results mid-sentence. `segments` batch-transcribes each finished segment (lag up to one segment length; results cached in `live.json` and reused by final processing). |
+| `realtime_model` | `gpt-realtime-whisper` | Transcription model for the `realtime` stream. |
+| `deepgram_api_key` | empty | Required for `live_mode = "deepgram"`. The live stream is the only thing it is used for. |
+| `deepgram_model` | `nova-3` | Deepgram model for the live stream. |
 | `live_insights` | `false` | Copilot pass on every live utterance: suggested answers, one-line explanations of things just mentioned, follow-up questions, or silence. Passes coalesce (one in flight, latest transcript wins), so cost scales with conversation activity. Needs `live_transcript`. |
 | `insight_model` | empty | Chat model for copilot passes. Empty uses `notes_model`; a non-reasoning model such as `gpt-5.3-chat-latest` shaves a little time per pass. |
 | `insight_priority` | `false` | Request OpenAI's priority service tier for copilot passes. Costs more; only worth testing if copilot latency matters to you. |

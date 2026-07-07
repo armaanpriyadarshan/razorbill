@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import ask, audio, context, meeting, openai_api, realtime, state
+from . import ask, audio, context, deepgram, meeting, openai_api, realtime, state
 from .config import Config
 from .notify import notify, notify_action
 
@@ -38,6 +38,8 @@ class Daemon:
         self._coach_pending = False
         self._coach_docs: str | None = None
         self._coach_docs_lines = 0
+        self._partial = ""            # utterance in progress (deepgram interims)
+        self._partial_kicked_words = 0
 
     # --- state file ----------------------------------------------------------
     def _write_status(self) -> None:
@@ -67,12 +69,20 @@ class Daemon:
         self.app = app
         self.started = self.last_mic_activity = time.time()
         self.rec.start(self.dir, self.cfg, source, monitor)
-        if self.cfg.live_transcript and self.cfg.live_mode == "realtime":
-            self._rt = realtime.Realtime(
-                self.cfg, self.api, source, monitor,
-                on_line=self._make_line_sink(self.dir),
-            )
-            self._rt.start()
+        if self.cfg.live_transcript:
+            if self.cfg.live_mode == "realtime":
+                self._rt = realtime.Realtime(
+                    self.cfg, self.api, source, monitor,
+                    on_line=self._make_line_sink(self.dir),
+                )
+                self._rt.start()
+            elif self.cfg.live_mode == "deepgram" and self.cfg.deepgram_api_key:
+                self._rt = deepgram.DeepgramStream(
+                    self.cfg, source, monitor,
+                    on_line=self._make_line_sink(self.dir),
+                    on_partial=self._make_partial_sink(self.dir),
+                )
+                self._rt.start()
         log.info("recording started (%s) -> %s", app, self.dir)
         threading.Thread(target=self._offer_stop, args=(app,), daemon=True).start()
 
@@ -83,10 +93,27 @@ class Daemon:
             stamp = time.strftime("%H:%M:%S")
             with lock, (d / meeting.LIVE_MD).open("a") as f:
                 f.write(f"**[{stamp}]** {text}\n\n")
+            self._partial = ""
+            self._partial_kicked_words = 0
             if self.cfg.live_insights:
                 self._coach_kick(d)
 
         return on_line
+
+    def _make_partial_sink(self, d: Path):
+        def on_partial(text: str) -> None:
+            self._partial = text
+            if not text:
+                self._partial_kicked_words = 0
+                return
+            # react mid-utterance once enough new words accumulate; the
+            # coalescing worker absorbs the extra kicks
+            words = text.count(" ") + 1
+            if self.cfg.live_insights and words - self._partial_kicked_words >= 8:
+                self._partial_kicked_words = words
+                self._coach_kick(d)
+
+        return on_partial
 
     # --- live copilot ---------------------------------------------------------
     # Every utterance triggers a pass; the only pacing is the model's own
@@ -110,7 +137,11 @@ class Daemon:
                     return
                 self._coach_pending = False
             try:
-                md = (d / meeting.LIVE_MD).read_text()
+                md = ""
+                if (d / meeting.LIVE_MD).exists():
+                    md = (d / meeting.LIVE_MD).read_text()
+                if self._partial:
+                    md += f"**[now, being said]** {self._partial}\n\n"
                 self._insight_pass(d, md, docs=self._coach_context(md))
             except Exception as e:
                 log.warning("copilot pass failed: %s", e)
@@ -146,6 +177,7 @@ class Daemon:
             self._rt.shutdown()
             self._rt = None
         self._coach_docs, self._coach_docs_lines = None, 0
+        self._partial, self._partial_kicked_words = "", 0
         if self._live is not None and self._live.is_alive():
             self._live.join(timeout=60)  # let the last live pass save its cache
         elapsed = time.time() - self.started
@@ -194,6 +226,10 @@ class Daemon:
             else:
                 log.warning("echo-cancel module unavailable; recording without it "
                             "(wear headphones or set echo_cancel = false)")
+        if (self.cfg.live_transcript and self.cfg.live_mode == "deepgram"
+                and not self.cfg.deepgram_api_key):
+            log.error("live_mode = \"deepgram\" needs deepgram_api_key; "
+                      "live transcript is off for this run")
         if audio.detection_supported():
             log.info("watching for meetings (mic capture by other apps)")
         else:

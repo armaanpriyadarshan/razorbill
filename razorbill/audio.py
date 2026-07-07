@@ -181,6 +181,19 @@ class EchoCancel:
 
 # --- recording -------------------------------------------------------------------
 
+def mixed_pcm(source: str, monitor: str, rate: int = 24000) -> subprocess.Popen:
+    """One ffmpeg mixing mic and system audio to mono pcm16 on stdout, for
+    streaming transcription. normalize=0 keeps both inputs at full amplitude
+    (the default halves each, starving voice detection of signal)."""
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", *_input_args(source)]
+    if monitor:
+        cmd += [*_input_args(monitor),
+                "-filter_complex", "amix=inputs=2:duration=longest:normalize=0"]
+    cmd += ["-ac", "1", "-ar", str(rate), "-f", "s16le", "pipe:1"]
+    return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+
 class Recorder:
     """One ffmpeg process per channel: mic ("me") and system audio ("them").
 

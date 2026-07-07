@@ -90,6 +90,11 @@ Two implementations, selected by `live_mode`:
   seconds of the words being spoken. Utterance boundaries come from
   server-side voice activity detection. Requires an endpoint that serves
   `/v1/realtime`; the stream reconnects with backoff if it drops.
+- `deepgram`: audio streams to Deepgram's `/v1/listen` (`nova-3` by
+  default; needs `deepgram_api_key`). Deepgram sends interim results while
+  a sentence is still being spoken, so the copilot can react to a question
+  before it ends; finalized utterances land in the transcript on
+  endpointing, a few hundred milliseconds after a pause.
 - `segments`: each recorded audio segment is batch-transcribed as it
   completes, so the transcript lags by up to one segment length. Works with
   any OpenAI-compatible endpoint; segment results are cached and re-used by

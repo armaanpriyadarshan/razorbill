@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 (2026-07-07)
+
+- Deepgram live mode (`live_mode = "deepgram"`, needs `deepgram_api_key`):
+  audio streams to Deepgram's `/v1/listen` and interim results arrive while
+  a sentence is still being spoken (first partial about 300 ms after speech
+  starts in testing; finalized utterances land within a second of a pause).
+  The copilot reacts to partials mid-utterance, so it can prepare an answer
+  while the question is being asked. OpenAI realtime stays the default.
+- The audio-mixing ffmpeg helper moved to `audio.mixed_pcm`, shared by both
+  streaming adapters. The WebSocket client sends binary frames.
+
 ## 0.7.1 (2026-07-06)
 
 - Live latency work. Utterance flush now runs on a 1 second receive tick

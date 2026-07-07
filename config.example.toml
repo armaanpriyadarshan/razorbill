@@ -48,6 +48,8 @@ live_transcript = false     # rolling transcript during the meeting (live.md)
 live_mode = "realtime"      # "realtime": websocket stream, text within seconds
                             # "segments": per-segment batch calls (one lag per segment)
 realtime_model = "gpt-realtime-whisper"
+# deepgram_api_key = "..."   # for live_mode = "deepgram" (interim results mid-sentence)
+# deepgram_model = "nova-3"
 live_insights = false       # copilot pass on every live utterance
 # insight_model = "gpt-5.3-chat-latest"  # faster model for copilot passes; empty uses notes_model
 # insight_priority = true                 # OpenAI priority tier for copilot passes (costs more)
