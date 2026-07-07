@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.14.0 (2026-07-07)
+
+- Detection now ignores corked (paused) microphone streams. Browsers keep
+  the mic stream open on a call's rejoin page but mark it paused when the
+  call ends, so meetings end through the normal grace period instead of
+  waiting out a silence timeout. This is the signal the silence machinery
+  was compensating for.
+- The farewell-based stop from 0.13.0 is removed: with corked streams
+  handled, the mic is a trustworthy end signal again, and a deterministic
+  timer beats a model judgment for stopping recordings. The silence
+  timeout stays as a backstop for apps that keep actively capturing.
+
 ## 0.13.0 (2026-07-07)
 
 - Meetings end when the conversation ends, not when a timer fires. In live

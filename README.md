@@ -136,16 +136,11 @@ On top of the rolling transcript:
   description are resolved and ground everything above, plus the note
   title. Attendee and company names steer background-document selection
   before anyone says them out loud.
-- Live mode also ends meetings by listening rather than by timer. When
-  goodbyes are heard (or a lull follows speech), a small model call judges
-  whether the conversation actually concluded; a yes arms a 45 second hold
-  that any new speech cancels, then recording stops and notes are
-  generated (`farewell_stop`). Sustained silence is the backstop: an
-  actionable warning at 3 minutes, a stop at `silence_stop_minutes`
-  (default 10). Both matter because meeting apps can hold the microphone
-  long after a call ends (a rejoin page left open), so the mic alone is
-  not a trustworthy end signal. After either stop, no new recording starts
-  until the mic is released once.
+- Sustained silence is a backstop end signal: an actionable warning at 3
+  minutes without speech, a stop at `silence_stop_minutes` (default 10).
+  This covers apps that keep actively capturing the microphone after a
+  call; after a silence stop, no new recording starts until the mic is
+  released once.
 
 Cost: realtime transcription is billed per audio minute for the duration of
 the meeting; the copilot adds roughly one chat call per utterance during
@@ -162,8 +157,11 @@ active conversation.
 | notifications | yes | yes | no |
 | TUI, notes, configuration | yes | yes | yes |
 
-Automatic detection watches for other applications opening the microphone,
-which every meeting app does for the length of a call. On macOS and
+Automatic detection watches for other applications actively capturing the
+microphone, which every meeting app does for the length of a call. Paused
+(corked) streams do not count, so a browser that keeps the mic stream on a
+call's rejoin page does not hold the recording open: the meeting ends
+through the normal grace period once the call ends. On macOS and
 Windows, capture devices are named in the config; see
 [docs/configuration.md](docs/configuration.md) for the platform device
 setup. The macOS and Windows paths are newer than the Linux path and have

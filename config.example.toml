@@ -57,8 +57,6 @@ realtime_model = "gpt-realtime-whisper"
 live_insights = false       # copilot pass on every live utterance
 # insight_model = "gpt-5.4-mini"          # faster model for copilot passes; empty uses notes_model
 # insight_priority = true                 # OpenAI priority tier for copilot passes (costs more)
-farewell_stop = true        # stop when goodbyes are heard and a model call
-                            # confirms the meeting ended (45s hold, speech cancels)
 silence_stop_minutes = 10.0 # backstop: stop after this long with no speech
                             # (apps can hold the mic after a call); 0 = off
 # context_dirs = ["~/notes/company"]   # background docs for notes, ask, and insights

@@ -102,6 +102,11 @@ def mic_capture_apps(cfg: Config, exclude_pids: set[int] | None = None) -> list[
     for so in _pactl_json("list", "source-outputs"):
         if so.get("source") in monitors:
             continue  # capturing system audio, not the mic
+        if so.get("corked"):
+            # the app holds a mic stream but has paused it: browsers do this
+            # on a call's rejoin page after the meeting ends. Holding is not
+            # using; only active capture counts as a meeting.
+            continue
         props = so.get("properties", {})
         if _prop(props, "media.role") == "filter":
             continue  # audio-filter plumbing (e.g. echo-cancel's own capture)

@@ -94,12 +94,9 @@ class Config:
                                      # falls back to notes_model (higher latency)
     insight_priority: bool = False   # OpenAI priority service tier for copilot
                                      # passes: lower latency, higher price
-    farewell_stop: bool = True       # end the meeting when goodbyes are heard and
-                                     # confirmed by the model, after a 45s hold
-                                     # that any new speech cancels (live mode only)
     silence_stop_minutes: float = 10.0  # backstop: end the meeting after this long
                                         # with no speech at all (0 = off); covers
-                                        # apps that hold the mic after a call
+                                        # apps that actively hold the mic after a call
     context_dirs: list[str] = field(default_factory=list)  # background docs for notes/ask/insights
     calendar_ics_url: str = ""       # read-only ICS feed; the current event's
                                      # title/attendees/description ground the
