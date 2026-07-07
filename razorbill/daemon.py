@@ -358,7 +358,7 @@ class Daemon:
         insights = d / meeting.INSIGHTS_MD
         prior = insights.read_text() if insights.exists() else ""
         reply = ask.insight(self.cfg, self.api, transcript_md, prior, docs=docs)
-        if not reply:
+        if not reply or not d.exists():  # meeting may have ended mid-pass
             return
         stamp = dt.datetime.now().strftime("%H:%M")
         with insights.open("a") as f:

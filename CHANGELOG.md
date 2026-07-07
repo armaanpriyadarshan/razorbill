@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.1 (2026-07-07)
+
+- Hotfix: the capture watchdog added in 0.10.0 killed healthy recordings
+  every 20 seconds. ffmpeg's ogg muxer buffers roughly half a minute of
+  audio before anything reaches disk, so the on-disk size check read a
+  live recording as dead. Segments are now muxed with
+  `segment_format_options flush_packets=1`, which makes on-disk size track
+  reality (verified: tens of kilobytes within seconds); the watchdog
+  threshold is unchanged and now measures what it meant to.
+- The copilot no longer warns when a meeting ends mid-pass.
+
 ## 0.11.0 (2026-07-07)
 
 - Live speaker labels in Deepgram mode. With a system-audio device, the

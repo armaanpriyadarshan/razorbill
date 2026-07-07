@@ -223,8 +223,13 @@ class Recorder:
     def start(self, dir: Path, cfg: Config, source: str, monitor: str) -> None:
         dir.mkdir(parents=True, exist_ok=True)
         seg = str(cfg.segment_seconds)
+        # segment_format_options flush_packets=1: make the inner ogg muxer
+        # write pages to disk as they are produced instead of buffering
+        # (a top-level -flush_packets does not reach it). On-disk size then
+        # tracks reality, which the capture watchdog depends on.
         audio = ["-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k",
-                 "-f", "segment", "-segment_time", seg, "-segment_format", "ogg"]
+                 "-f", "segment", "-segment_time", seg, "-segment_format", "ogg",
+                 "-segment_format_options", "flush_packets=1"]
         channels = [(source, "me")]
         if monitor:
             channels.append((monitor, "them"))
