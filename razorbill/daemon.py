@@ -48,6 +48,11 @@ class Daemon:
                                          # recording until the mic is let go once
         self._ics_cache: list | None = None
         self._ics_fetched = 0.0
+        # farewell-based ending: confirmed end arms a hold window; any new
+        # speech cancels it (a false positive costs nothing)
+        self._ending_at: float | None = None
+        self._end_checking = False
+        self._end_probed_this_lull = False
 
     # --- state file ----------------------------------------------------------
     def _write_status(self) -> None:
@@ -78,6 +83,8 @@ class Daemon:
         self.started = self.last_mic_activity = self._last_speech = time.time()
         self._watchdog_done = False
         self._silence_notified = False
+        self._ending_at = None
+        self._end_probed_this_lull = False
         self.rec.start(self.dir, self.cfg, source, monitor)
         if self.cfg.live_transcript:
             if self.cfg.live_mode == "realtime":
@@ -126,10 +133,36 @@ class Daemon:
             self._partial_kicked_words = 0
             self._last_speech = time.time()
             self._silence_notified = False
+            self._end_probed_this_lull = False
+            if self._ending_at is not None:
+                log.info("speech resumed; the meeting continues")
+                self._ending_at = None
+            if self.cfg.farewell_stop and ask.FAREWELL_RE.search(text):
+                threading.Thread(target=self._confirm_end, args=(d,), daemon=True).start()
             if self.cfg.live_insights:
                 self._coach_kick(d)
 
         return on_line
+
+    def _confirm_end(self, d: Path) -> None:
+        """A farewell was heard (or a lull followed speech): ask a small model
+        whether the meeting actually ended. YES arms a 45 second hold."""
+        if self._end_checking or self._ending_at is not None:
+            return
+        self._end_checking = True
+        try:
+            tail = (d / meeting.LIVE_MD).read_text()[-2500:]
+            quiet = time.time() - self._last_speech
+            if ask.meeting_over(self.cfg, self.api, tail, quiet):
+                if self._ending_at is None and self.dir == d:
+                    self._ending_at = time.time() + 45
+                    log.info("meeting looks over; stopping in 45s unless someone speaks")
+                    notify(self.cfg.notify, "Meeting looks over",
+                           "Stopping in 45 seconds. Speak to keep recording.")
+        except Exception as e:
+            log.warning("end-of-meeting check failed: %s", e)
+        finally:
+            self._end_checking = False
 
     def _make_partial_sink(self, d: Path):
         def on_partial(text: str) -> None:
@@ -375,24 +408,43 @@ class Daemon:
                 self._finish()
                 return
 
-        # Silence handling (live mode only: the stream is the speech signal).
-        # Meeting apps can hold the microphone long after a call ends (a
-        # rejoin page left open), which keeps mic-based detection alive
-        # forever. Sustained silence is the truer end-of-meeting signal:
-        # offer a stop at 3 minutes, stop at silence_stop_minutes.
-        if self._rt is not None and self.cfg.silence_stop_minutes > 0:
+        # End-of-meeting handling (live mode only: the stream is the speech
+        # signal). Meeting apps can hold the microphone long after a call
+        # ends (a rejoin page left open), so the mic is not a trustworthy
+        # end signal. The conversation is. In order of preference:
+        # a confirmed farewell (armed hold below), a model check after a
+        # lull that followed speech, and the silence timeout as backstop.
+        if self._rt is not None:
             quiet = now - self._last_speech
-            if not self._silence_notified and quiet > 180:
-                self._silence_notified = True
-                threading.Thread(target=self._offer_silence_stop, daemon=True).start()
-            if quiet > self.cfg.silence_stop_minutes * 60:
-                log.info("no speech for %.0f min; ending the meeting", quiet / 60)
-                notify(self.cfg.notify, "Recording stopped",
-                       f"No speech for {quiet / 60:.0f} minutes. Notes are on the way. "
-                       f"A new recording starts when the mic is released and used again.")
+
+            if self._ending_at is not None and now > self._ending_at:
+                log.info("meeting over (farewell confirmed); generating notes")
+                self._ending_at = None
                 self._await_mic_release = True
                 self._finish()
                 return
+
+            if (self.cfg.farewell_stop and not self._end_probed_this_lull
+                    and self._ending_at is None and 60 < quiet
+                    and self._last_speech > self.started):
+                # speech happened, then a minute of nothing: maybe the call
+                # ended without a farewell razorbill caught (or people left)
+                self._end_probed_this_lull = True
+                threading.Thread(target=self._confirm_end, args=(self.dir,),
+                                 daemon=True).start()
+
+            if self.cfg.silence_stop_minutes > 0:
+                if not self._silence_notified and quiet > 180:
+                    self._silence_notified = True
+                    threading.Thread(target=self._offer_silence_stop, daemon=True).start()
+                if quiet > self.cfg.silence_stop_minutes * 60:
+                    log.info("no speech for %.0f min; ending the meeting", quiet / 60)
+                    notify(self.cfg.notify, "Recording stopped",
+                           f"No speech for {quiet / 60:.0f} minutes. Notes are on the way. "
+                           f"A new recording starts when the mic is released and used again.")
+                    self._await_mic_release = True
+                    self._finish()
+                    return
 
         if (self.cfg.live_transcript and self.cfg.live_mode == "segments"
                 and (self._live is None or not self._live.is_alive())):

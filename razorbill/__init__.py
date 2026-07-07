@@ -1,3 +1,3 @@
 """razorbill: minimalist meeting notes for Linux."""
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"

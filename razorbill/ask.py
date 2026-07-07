@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from . import context, events, meeting, openai_api, state
@@ -9,6 +10,32 @@ from .config import Config
 
 LIVE_MD = "live.md"
 COACH_DOC_CHARS = 8_000  # copilot doc budget; prefill time scales with input
+
+# Utterances that suggest a call is wrapping up. Deliberately loose: this is
+# only the trigger for the model confirmation below, so a false hit costs one
+# tiny chat call, not a stopped recording.
+FAREWELL_RE = re.compile(
+    r"\b(good\s?bye|bye|see (you|ya)|talk (to you |too you )?(soon|later|next|tomorrow)"
+    r"|take care|have a (good|great|nice)|thanks,? every(one|body)"
+    r"|catch (you|ya)|cheers|signing off|drop( off)? now|got to (run|go|jump)"
+    r"|have to (run|go|jump)|great (chat|call|meeting|talking)"
+    r"|nice (chatting|talking|meeting))\b", re.IGNORECASE)
+
+OVER_SYSTEM = """\
+You judge whether a live meeting has just ended. You get the tail of its
+transcript and how long ago the last words arrived. Answer YES only when the
+conversation has clearly concluded: goodbyes exchanged, wrap-up finished,
+participants leaving. A lull, a topic change, someone stepping away, or a
+farewell that the conversation then moved past is NO. Answer exactly YES or NO.
+"""
+
+
+def meeting_over(cfg: Config, api: openai_api.Api, tail: str,
+                 seconds_since_speech: float) -> bool:
+    user = (f"Transcript tail:\n\n{tail[-2500:]}\n\n"
+            f"The most recent words arrived {seconds_since_speech:.0f} seconds ago.")
+    reply = openai_api.chat(cfg, api, OVER_SYSTEM, user, model=cfg.insight_model)
+    return reply.strip().upper().startswith("YES")
 
 SYSTEM = """\
 You answer questions about a meeting. You get background documents (when

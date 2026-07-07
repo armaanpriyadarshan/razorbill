@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.0 (2026-07-07)
+
+- Meetings end when the conversation ends, not when a timer fires. In live
+  mode, hearing a farewell (or a minute of quiet after speech) triggers a
+  small model call that judges whether the meeting actually concluded; a
+  yes arms a 45 second hold, announced by a notification, and any new
+  speech cancels it. The silence timeout remains as a backstop and the
+  mic-release guard still prevents restart churn from apps that hold the
+  microphone after a call. `farewell_stop = false` disables it.
+
 ## 0.12.0 (2026-07-07)
 
 - Silence ends the meeting. Meeting apps can hold the microphone after a

@@ -136,11 +136,16 @@ On top of the rolling transcript:
   description are resolved and ground everything above, plus the note
   title. Attendee and company names steer background-document selection
   before anyone says them out loud.
-- Meeting apps can hold the microphone after a call ends (a rejoin page
-  left open), which would keep mic-based detection recording forever. In
-  live mode, sustained silence ends the meeting instead: an actionable
-  warning at 3 minutes, a stop at `silence_stop_minutes` (default 10), and
-  no new recording until the mic is released once.
+- Live mode also ends meetings by listening rather than by timer. When
+  goodbyes are heard (or a lull follows speech), a small model call judges
+  whether the conversation actually concluded; a yes arms a 45 second hold
+  that any new speech cancels, then recording stops and notes are
+  generated (`farewell_stop`). Sustained silence is the backstop: an
+  actionable warning at 3 minutes, a stop at `silence_stop_minutes`
+  (default 10). Both matter because meeting apps can hold the microphone
+  long after a call ends (a rejoin page left open), so the mic alone is
+  not a trustworthy end signal. After either stop, no new recording starts
+  until the mic is released once.
 
 Cost: realtime transcription is billed per audio minute for the duration of
 the meeting; the copilot adds roughly one chat call per utterance during
