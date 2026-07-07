@@ -176,6 +176,7 @@ class MainScreen(Screen):
         Binding("n", "jot", "jot"),
         Binding("a", "ask", "ask"),
         Binding("r", "record", "record/stop"),
+        Binding("d", "delete_note", "delete"),
         Binding("p", "reprocess", "reprocess", show=False),
         Binding("q", "app.quit", "quit"),
     ]
@@ -207,6 +208,7 @@ class MainScreen(Screen):
         self.query_one("#live").display = False
         self._dir_stamp = 0.0
         self._live_stamp = ("", "")
+        self._delete_pending: tuple[Path | None, float] = (None, 0.0)
         self._refresh_status()
         self._refresh_notes()
         self.set_interval(1.0, self._refresh_status)
@@ -324,6 +326,24 @@ class MainScreen(Screen):
 
     def action_ask(self) -> None:
         self.app.push_screen(AskScreen())
+
+    def action_delete_note(self) -> None:
+        path = self._selected()
+        if path is None:
+            return
+        pending, asked = self._delete_pending
+        if pending == path and time.monotonic() - asked < 4.0:
+            self._delete_pending = (None, 0.0)
+            try:
+                dest = meeting.delete_note(self.app.cfg, path)
+            except OSError as e:
+                self.app.flash(f"could not delete: {e}", "warn")
+                return
+            self._refresh_notes()
+            self.app.flash(f"moved to {dest.parent.name}/{dest.name}")
+        else:
+            self._delete_pending = (path, time.monotonic())
+            self.app.flash(f"delete '{path.stem}'? press d again", "warn")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()

@@ -40,6 +40,8 @@ class Daemon:
         self._coach_docs_lines = 0
         self._partial = ""            # utterance in progress (deepgram interims)
         self._partial_kicked_words = 0
+        self._watchdog_done = False   # per-recording early capture check
+        self._last_wall = time.time()
 
     # --- state file ----------------------------------------------------------
     def _write_status(self) -> None:
@@ -68,6 +70,7 @@ class Daemon:
         self.dir = meeting.new_meeting_dir(self.cfg, app)
         self.app = app
         self.started = self.last_mic_activity = time.time()
+        self._watchdog_done = False
         self.rec.start(self.dir, self.cfg, source, monitor)
         if self.cfg.live_transcript:
             if self.cfg.live_mode == "realtime":
@@ -164,6 +167,16 @@ class Daemon:
                 self._coach_docs = self._coach_docs or ""
         return self._coach_docs
 
+    def _reload_ec(self) -> None:
+        """Tear down and rebuild the echo-cancel plumbing (Linux only)."""
+        if not (self.cfg.echo_cancel and audio.PLATFORM == "linux"):
+            return
+        self.ec.disable()
+        if self.ec.enable(self.cfg):
+            log.info("echo cancellation reloaded")
+        else:
+            log.warning("echo-cancel reload failed; recording without it")
+
     def _offer_stop(self, app: str) -> None:
         if notify_action(self.cfg.notify, "Recording meeting",
                          f"Detected: {app}", "stop", "Stop"):
@@ -183,6 +196,20 @@ class Daemon:
         if self._live is not None and self._live.is_alive():
             self._live.join(timeout=60)  # let the last live pass save its cache
         elapsed = time.time() - self.started
+
+        # A recording with essentially no bytes means the capture source was
+        # dead (the known cause: audio plumbing gone stale across suspend).
+        # Discard loudly instead of writing an empty "no speech" note.
+        if elapsed > 5 and meeting.audio_bytes(d) < 4096:
+            log.error("capture produced no audio (%.0fs recording); discarding "
+                      "and reloading echo cancel", elapsed)
+            notify(self.cfg.notify, "razorbill: recording had no audio",
+                   f"{app}: the capture source delivered no data, so there is "
+                   f"nothing to transcribe. Audio devices are being reset; "
+                   f"recording restarts automatically if the meeting is live.")
+            meeting.discard(d)
+            self._reload_ec()
+            return
 
         # Auto-detected blips (mic checks) get discarded; manual recordings are
         # always kept: the user explicitly asked for them.
@@ -240,6 +267,16 @@ class Daemon:
                      audio.PLATFORM)
 
         while not self.stop_flag:
+            now = time.time()
+            if now - self._last_wall > self.cfg.poll_seconds * 2 + 60:
+                # The wall clock jumped: we slept through a suspend. Audio
+                # plumbing loaded before it cannot be trusted afterward
+                # (a stale echo-cancel node delivers pure silence).
+                log.info("resume from suspend detected; resetting audio plumbing")
+                if self.dir is not None:
+                    self._finish()  # its capture died with the suspend
+                self._reload_ec()
+            self._last_wall = now
             try:
                 self._tick()
             except Exception as e:
@@ -280,6 +317,17 @@ class Daemon:
                 log.error("recorder exited unexpectedly, see ffmpeg.log in %s", self.dir)
             self._finish()
             return
+
+        # Early capture watchdog: 20 seconds in, a healthy recording has tens
+        # of kilobytes of Opus on disk. Nothing at all means the source is
+        # dead; _finish discards it, reloads echo cancel, and detection
+        # restarts the recording within a poll or two.
+        if not self._watchdog_done and now - self.started > 20:
+            self._watchdog_done = True
+            if meeting.audio_bytes(self.dir) < 4096:
+                log.error("capture watchdog: no audio after 20s, restarting")
+                self._finish()
+                return
 
         if (self.cfg.live_transcript and self.cfg.live_mode == "segments"
                 and (self._live is None or not self._live.is_alive())):

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0 (2026-07-07)
+
+- Suspend recovery. A recording daemon that lives across laptop suspend
+  kept a stale echo-cancel node whose capture delivered pure silence, so a
+  meeting after resume produced an empty "no speech" note with no error.
+  Three fixes: the daemon detects the wall-clock jump on resume and
+  rebuilds the audio plumbing; a watchdog restarts any recording that has
+  produced no audio bytes after 20 seconds; and a finished recording with
+  no audio is discarded with a clear notification instead of becoming an
+  empty note.
+- Delete notes from the TUI: `d` on a selected note asks, `d` again moves
+  it to `.trash/` inside the output directory (never a hard delete; the
+  note is usually the only copy left once audio is cleaned up).
+
 ## 0.9.0 (2026-07-07)
 
 - Live transcript in the TUI: while recording, the main screen shows

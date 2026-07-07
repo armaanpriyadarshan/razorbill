@@ -206,6 +206,28 @@ def strip_frontmatter(text: str) -> str:
     return text
 
 
+def audio_bytes(d: Path) -> int:
+    """Total recorded segment bytes. Near zero means the capture source
+    delivered no data (dead PipeWire node, e.g. stale echo-cancel after
+    suspend), since even silence encodes to steady Opus output."""
+    return sum(f.stat().st_size for f in d.glob("*.ogg"))
+
+
+def delete_note(cfg: Config, path: Path) -> Path:
+    """Move a note to .trash inside the output directory and return the new
+    path. A move rather than an unlink: the audio behind a note is usually
+    already deleted, so this is the last copy."""
+    trash = cfg.out_dir() / ".trash"
+    trash.mkdir(parents=True, exist_ok=True)
+    dest = trash / path.name
+    n = 1
+    while dest.exists():
+        dest = trash / f"{path.stem}-{n}{path.suffix}"
+        n += 1
+    path.rename(dest)
+    return dest
+
+
 def list_notes(cfg: Config) -> list[dict]:
     """Index of finished notes, newest first: path, title, date, minutes, app."""
     root = cfg.out_dir()

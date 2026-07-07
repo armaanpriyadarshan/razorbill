@@ -74,6 +74,7 @@ Markdown reader.
 | `n` | jot into the live meeting |
 | `a` | ask about the live meeting or latest note |
 | `r` | start or stop recording |
+| `d` | delete note (press twice; moved to `.trash/` in the output directory) |
 | `p` | retry failed processing |
 | `q` | quit |
 
