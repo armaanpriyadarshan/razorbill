@@ -37,7 +37,7 @@ ART = "\n".join(
     )
 )
 
-TAGLINE = "meeting transcription and notes · bring your own key"
+TAGLINE = "meeting transcription and notes"
 
 
 def _status() -> tuple[str, str, str]:
@@ -275,7 +275,7 @@ class MainScreen(Screen):
 
 
 class RazorbillApp(App):
-    """razorbill: meeting transcription and notes, bring your own key."""
+    """razorbill: meeting transcription and notes."""
 
     TITLE = "razorbill"
 
