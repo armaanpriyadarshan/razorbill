@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.1 (2026-07-07)
+
+- TUI live rendering rebuilt. Finalized utterances mount once as their own
+  widgets (dim timestamp, Me in red, Them in amber) instead of the whole
+  pane re-rendering on every change; the in-progress sentence is a single
+  widget updated in place, pinned under the captions. Auto-scroll only
+  happens when already at the bottom, so scrolling back to read is never
+  interrupted. The copilot area is a small feed (newest insight bright,
+  older ones dimmed) rather than one overwritten line.
+- Transcript, copilot, and flash text render as plain text rather than
+  going through the markup parser, so utterances containing square
+  brackets can no longer corrupt the display.
+
 ## 0.14.0 (2026-07-07)
 
 - Detection now ignores corked (paused) microphone streams. Browsers keep

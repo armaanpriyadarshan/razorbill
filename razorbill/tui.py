@@ -12,6 +12,7 @@ import re
 import time
 from pathlib import Path
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -196,7 +197,8 @@ class MainScreen(Screen):
         yield Input(placeholder="jot a note into the meeting (enter to save)", id="jot")
         yield Static("", id="insight")
         yield Static("live transcript", id="live-section")
-        yield VerticalScroll(Static("", id="live-text"), id="live")
+        yield VerticalScroll(id="live")
+        yield Static("", id="live-partial")
         yield Static("meetings", id="section")
         yield ListView(id="notes")
         yield Static("", id="empty")
@@ -204,10 +206,13 @@ class MainScreen(Screen):
 
     def on_mount(self) -> None:
         self.query_one("#jot").display = False
-        self.query_one("#live-section").display = False
-        self.query_one("#live").display = False
+        for wid in ("#live-section", "#live", "#live-partial"):
+            self.query_one(wid).display = False
         self._dir_stamp = 0.0
-        self._live_stamp = ("", "")
+        self._live_dir: Path | None = None
+        self._live_count = 0
+        self._partial_shown = ""
+        self._insight_count = 0
         self._delete_pending: tuple[Path | None, float] = (None, 0.0)
         self._refresh_status()
         self._refresh_notes()
@@ -226,49 +231,108 @@ class MainScreen(Screen):
         self.query_one("#jot").display = css == "recording"
         self._refresh_insight(css)
 
-    def _refresh_live(self) -> None:
-        """Rolling captions while recording: recent utterances from live.md
-        plus the words currently being spoken (streaming interims)."""
+    @staticmethod
+    def _caption(stamp: str, label: str | None, text: str) -> Text:
+        """One transcript line as a Rich renderable. Text objects, never
+        markup strings: transcript content can contain anything, including
+        square brackets that markup would try to parse."""
+        out = Text(no_wrap=False)
+        out.append(stamp, style="#6f6a5f")
+        out.append("  ")
+        if label:
+            color = "#e05d4b" if label.startswith("Me") else "#d9a24c"
+            out.append(label + " ", style=f"bold {color}")
+        out.append(text, style="#c9c4b8")
+        return out
+
+    async def _refresh_live(self) -> None:
+        """Rolling captions while recording. Finalized utterances are
+        appended once and never re-rendered; the in-progress sentence is one
+        widget updated in place. Auto-scroll only when already at the
+        bottom, so reading back is never interrupted."""
         s = state.read_status()
         recording = s.get("state") == "recording"
-        lines: list[str] = []
-        if recording:
-            try:
-                raw = (Path(s["dir"]) / meeting.LIVE_MD).read_text()
-                for m in re.finditer(r"\*\*\[(.+?)\](?:\s+([^*]+?))?\*\*\s*(.+)", raw):
-                    stamp, label, text = m.group(1), m.group(2), m.group(3)
-                    who = f"[bold]{label}[/] " if label else ""
-                    lines.append(f"[#6f6a5f]{stamp}[/]  {who}{text}")
-            except OSError:
-                pass
-        partial = state.read_partial().strip() if recording else ""
-        if partial:
-            lines.append(f"[#6f6a5f italic]{partial} ...[/]")
+        sc = self.query_one("#live", VerticalScroll)
+        partial_w = self.query_one("#live-partial", Static)
 
-        stamp = (lines[-1] if lines else "", str(len(lines)))
-        visible = recording and bool(lines)
+        if not recording:
+            if self._live_dir is not None:
+                self._live_dir = None
+                self._live_count = 0
+                self._partial_shown = ""
+                await sc.remove_children()
+            for wid in ("#live-section", "#live", "#live-partial"):
+                self.query_one(wid).display = False
+            return
+
+        d = Path(s["dir"])
+        if d != self._live_dir:  # a new meeting began
+            self._live_dir = d
+            self._live_count = 0
+            self._partial_shown = ""
+            await sc.remove_children()
+
+        try:
+            raw = (d / meeting.LIVE_MD).read_text()
+        except OSError:
+            raw = ""
+        matches = re.findall(r"\*\*\[(.+?)\](?:\s+([^*]+?))?\*\*\s*(.+)", raw)
+        partial = state.read_partial().strip()
+
+        visible = bool(matches or partial)
         self.query_one("#live-section").display = visible
-        self.query_one("#live").display = visible
-        if visible and stamp != self._live_stamp:
-            self._live_stamp = stamp
-            self.query_one("#live-text", Static).update("\n".join(lines[-40:]))
-            self.query_one("#live", VerticalScroll).scroll_end(animate=False)
+        sc.display = visible
+        partial_w.display = bool(partial)
+        if not visible:
+            return
+
+        at_bottom = sc.scroll_offset.y >= sc.max_scroll_y - 1
+        fresh = matches[self._live_count:]
+        if fresh:
+            await sc.mount_all(
+                Static(self._caption(st, lb, tx), classes="live-line")
+                for st, lb, tx in fresh
+            )
+            self._live_count = len(matches)
+            overflow = len(sc.children) - 80
+            for w in list(sc.children)[:max(0, overflow)]:
+                w.remove()
+
+        if partial != self._partial_shown:
+            self._partial_shown = partial
+            spoken = Text(no_wrap=False)
+            for i, line in enumerate(partial.splitlines()):
+                if i:
+                    spoken.append("\n")
+                spoken.append(line + " ...", style="italic #6f6a5f")
+            partial_w.update(spoken)
+
+        if fresh and at_bottom:
+            sc.scroll_end(animate=False)
 
     def _refresh_insight(self, css: str) -> None:
-        """Show the newest proactive insight while a meeting is recording."""
+        """The copilot feed: the last few insights, newest emphasized."""
         w = self.query_one("#insight", Static)
-        latest = ""
+        blocks: list[str] = []
         if css == "recording":
             s = state.read_status()
             f = Path(s.get("dir", "")) / meeting.INSIGHTS_MD
             try:
                 blocks = [b.strip() for b in f.read_text().split("\n\n") if b.strip()]
-                latest = blocks[-1] if blocks else ""
             except OSError:
                 pass
-        w.display = bool(latest)
-        if latest:
-            w.update(latest)
+        w.display = bool(blocks)
+        if not blocks or len(blocks) == self._insight_count:
+            self._insight_count = len(blocks)
+            return
+        self._insight_count = len(blocks)
+        feed = Text(no_wrap=False)
+        for i, block in enumerate(blocks[-3:]):
+            if i:
+                feed.append("\n")
+            newest = block is blocks[-1]
+            feed.append(block, style="#d9a24c" if newest else "#7a6a45")
+        w.update(feed)
 
     def _maybe_refresh_notes(self) -> None:
         root = self.app.cfg.out_dir()
@@ -453,10 +517,20 @@ class RazorbillApp(App):
     }
     #live {
         height: 9;
-        margin: 0 2 1 2;
+        margin: 0 2;
         padding: 0 1;
         border-left: thick #33363e;
-        color: #c9c4b8;
+        scrollbar-size-vertical: 1;
+    }
+    .live-line {
+        height: auto;
+        margin-bottom: 0;
+    }
+    #live-partial {
+        height: auto;
+        margin: 0 2 1 2;
+        padding: 0 1;
+        border-left: thick #23252c;
     }
     #ask-input {
         margin: 1 2 0 2;
@@ -536,7 +610,7 @@ class RazorbillApp(App):
         except Exception:
             return
         w.set_classes(f"flash-{style}")
-        w.update(text)
+        w.update(Text(text))  # plain Text: messages may contain brackets
         if self._flash_timer is not None:
             self._flash_timer.stop()
         self._flash_timer = self.set_timer(3.0, lambda: self._clear_flash(w))
