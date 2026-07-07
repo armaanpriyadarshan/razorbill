@@ -13,7 +13,6 @@ from . import context, events, openai_api, transcript
 from .config import Config
 
 META = "meta.json"
-JOTS = "jots.md"
 
 
 def new_meeting_dir(cfg: Config, app: str) -> Path:
@@ -132,8 +131,6 @@ def _process(cfg: Config, api: openai_api.Api, d: Path, meta: dict) -> Path:
     utterances = transcript.merge(me, them)
     transcript_md = transcript.to_markdown(utterances)
 
-    jots = (d / JOTS).read_text().strip() if (d / JOTS).exists() else ""
-
     event_block = events.describe(events.read_event(d))
 
     title, notes_md = "Untitled meeting", ""
@@ -151,8 +148,6 @@ def _process(cfg: Config, api: openai_api.Api, d: Path, meta: dict) -> Path:
                 docs = ""  # background docs are best-effort, never fatal
             if docs:
                 user_msg += f"Background documents (context, not meeting content):\n\n{docs}\n\n"
-        if jots:
-            user_msg += f"My own notes taken during the meeting:\n{jots}\n\n"
         user_msg += f"Transcript:\n\n{transcript_md}"
         notes_md = openai_api.chat(cfg, api, cfg.prompt(), user_msg)
         m = re.match(r"#\s+(.+)", notes_md)
@@ -176,8 +171,6 @@ def _process(cfg: Config, api: openai_api.Api, d: Path, meta: dict) -> Path:
         ]
     )
     body = [front, f"# {title}", notes_md]
-    if jots:
-        body += ["## My notes", jots]
     body += ["## Transcript", transcript_md or "_empty_"]
 
     out = cfg.out_dir() / f"{d.name[:15]}-{_slug(title)}.md"  # YYYY-MM-DD-HHMM

@@ -87,8 +87,7 @@ the diarizing model still labels the speakers it hears.
 
 | option | default | notes |
 |---|---|---|
-| `notes_prompt_file` | empty | Path to a file that replaces the built-in note-writing prompt. Use this for your own template, a standup format, another language, and so on. The transcript and your jots are appended after the prompt. |
+| `notes_prompt_file` | empty | Path to a file that replaces the built-in note-writing prompt. Use this for your own template, a standup format, another language, and so on. The calendar event, background documents, and transcript are appended after the prompt. |
 
 The built-in prompt asks for a title line, a summary, key points, decisions,
-action items as checkboxes, and open questions, and tells the model to treat
-your jots as anchors to expand.
+action items as checkboxes, and open questions.

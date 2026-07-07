@@ -30,8 +30,6 @@ background daemon; notes are plain Markdown files.
 - Output is one Markdown file per meeting in `output_dir`
   (`~/Documents/meetings` by default). Audio is deleted after successful
   transcription; on failure it is kept and `razorbill reprocess` retries.
-- Notes jotted during a meeting (TUI or `razorbill note`) are passed to
-  the model as anchors to expand.
 
 ## Install
 
@@ -63,15 +61,14 @@ elsewhere).
 
 ## Usage
 
-`razorbill` opens the TUI: live daemon status, a jot box, rolling live
-captions during recording (with live mode on, including the sentence
-currently being spoken), copilot output, and the note list with a built-in
-Markdown reader.
+`razorbill` opens the TUI: live daemon status, rolling live captions
+during recording (with live mode on, including the sentence currently
+being spoken), copilot output, and the note list with a built-in Markdown
+reader.
 
 | key | action |
 |---|---|
 | `enter` / `e` | read note / open in editor |
-| `n` | jot into the live meeting |
 | `a` | ask about the live meeting or latest note |
 | `r` | start or stop recording |
 | `d` | delete note (press twice; moved to `.trash/` in the output directory) |
@@ -79,7 +76,7 @@ Markdown reader.
 | `q` | quit |
 
 CLI: `status [--json]`, `statusline [--polybar]`, `toggle`, `start`,
-`stop`, `note "..."`, `ask "..."`, `last`, `reprocess`, `run`, `bird`.
+`stop`, `ask "..."`, `last`, `reprocess`, `run`, `bird`.
 
 ## Live mode
 
@@ -185,8 +182,8 @@ easy to drive from scripts and coding agents such as Claude Code:
   (`{"state": "recording", "app": ..., "since": ...}`).
 - Notes are Markdown files with YAML frontmatter in one directory; reading,
   searching, and summarizing them requires no API.
-- `razorbill start`, `stop`, `toggle`, and `note "text"` are
-  non-interactive and exit non-zero on failure.
+- `razorbill start`, `stop`, and `toggle` are non-interactive and exit
+  non-zero on failure.
 - `razorbill ask "..."` answers one question over the live transcript or
   the latest note and prints the answer to stdout.
 - `razorbill last` prints the path of the newest note.

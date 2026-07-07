@@ -80,12 +80,6 @@ def cmd_last(_args) -> None:
     state.open_path(notes[-1])
 
 
-def cmd_note(args) -> None:
-    if not state.add_jot(" ".join(args.text)):
-        raise SystemExit("no meeting is being recorded")
-    print("noted")
-
-
 def cmd_start(_args) -> None:
     if state.read_status().get("state") == "off":
         raise SystemExit("daemon not running. Start it first: razorbill run")
@@ -142,8 +136,6 @@ def main() -> None:
     sl.add_argument("--polybar", action="store_true", help="emit polybar color tags")
     sub.add_parser("toggle", help="start recording if idle, stop if recording")
     sub.add_parser("last", help="print and open the newest meeting note")
-    n = sub.add_parser("note", help="jot a note into the current meeting (anchors the AI notes)")
-    n.add_argument("text", nargs="+")
     sub.add_parser("start", help="start recording now, without waiting for detection")
     sub.add_parser("stop", help="stop the current recording and generate notes")
     q = sub.add_parser("ask", help="ask about the live meeting or the latest note")
@@ -162,7 +154,6 @@ def main() -> None:
         "statusline": cmd_statusline,
         "toggle": cmd_toggle,
         "last": cmd_last,
-        "note": cmd_note,
         "start": cmd_start,
         "stop": cmd_stop,
         "reprocess": cmd_reprocess,

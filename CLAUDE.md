@@ -7,10 +7,10 @@ copilot. Python 3.11+, package name `razorbill-notes`, command `razorbill`.
 
 - `uv sync` sets up the dev environment, `uv build` builds sdist and
   wheel. The test suite is not part of the public repository.
-- `razorbill status --json` prints daemon state; `start`/`stop`/`toggle`/
-  `note "text"` control it non-interactively; `ask "..."` answers one
-  question over the live transcript or latest note; `last` prints the
-  newest note path. Notes are Markdown files in `output_dir`
+- `razorbill status --json` prints daemon state; `start`/`stop`/`toggle`
+  control it non-interactively; `ask "..."` answers one question over the
+  live transcript or latest note; `last` prints the newest note path.
+  Notes are Markdown files in `output_dir`
   (default `~/Documents/meetings`).
 
 ## Architecture

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.0 (2026-07-07)
+
+- The jot feature is removed: the TUI input box and `n` binding, the
+  `razorbill note` command, the jots section in notes, and the prompt
+  language around jot anchors. The live copilot and `ask` cover the
+  during-meeting use the jot box was for.
+
 ## 0.14.1 (2026-07-07)
 
 - TUI live rendering rebuilt. Finalized utterances mount once as their own

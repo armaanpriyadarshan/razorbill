@@ -169,12 +169,11 @@ class SetupScreen(Screen):
 
 
 class MainScreen(Screen):
-    """Status, jot box, and the list of meeting notes."""
+    """Status, live captions, and the list of meeting notes."""
 
     BINDINGS = [
         Binding("enter", "open_note", "read", show=True),
         Binding("e", "open_editor", "editor"),
-        Binding("n", "jot", "jot"),
         Binding("a", "ask", "ask"),
         Binding("r", "record", "record/stop"),
         Binding("d", "delete_note", "delete"),
@@ -194,7 +193,6 @@ class MainScreen(Screen):
             ),
             id="header",
         )
-        yield Input(placeholder="jot a note into the meeting (enter to save)", id="jot")
         yield Static("", id="insight")
         yield Static("live transcript", id="live-section")
         yield VerticalScroll(id="live")
@@ -205,7 +203,6 @@ class MainScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#jot").display = False
         for wid in ("#live-section", "#live", "#live-partial"):
             self.query_one(wid).display = False
         self._dir_stamp = 0.0
@@ -228,7 +225,6 @@ class MainScreen(Screen):
         w = self.query_one("#status", Static)
         w.set_classes(css)
         w.update(f"{glyph} {text}")
-        self.query_one("#jot").display = css == "recording"
         self._refresh_insight(css)
 
     @staticmethod
@@ -384,12 +380,6 @@ class MainScreen(Screen):
             state.open_path(path)
             self.app.flash(f"opened {path.name}")
 
-    def action_jot(self) -> None:
-        if state.read_status().get("state") != "recording":
-            self.app.flash("no meeting is being recorded", "warn")
-            return
-        self.query_one("#jot", Input).focus()
-
     def action_ask(self) -> None:
         self.app.push_screen(AskScreen())
 
@@ -410,15 +400,6 @@ class MainScreen(Screen):
         else:
             self._delete_pending = (path, time.monotonic())
             self.app.flash(f"delete '{path.stem}'? press d again", "warn")
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        text = event.value.strip()
-        event.input.value = ""
-        self.query_one("#notes", ListView).focus()
-        if text and state.add_jot(text):
-            self.app.flash("noted")
-        elif text:
-            self.app.flash("the meeting ended before the jot landed", "warn")
 
     def action_record(self) -> None:
         s = state.read_status().get("state")
@@ -497,12 +478,6 @@ class RazorbillApp(App):
     #status.processing { color: #d9a24c; }
     #status.idle { color: #8a857a; }
     #status.off { color: #5c584f; }
-    #jot {
-        margin: 0 2;
-        border: tall #33363e;
-        background: #1b1d23;
-    }
-    #jot:focus { border: tall #e05d4b; }
     #insight {
         margin: 0 2 1 2;
         padding: 0 1;

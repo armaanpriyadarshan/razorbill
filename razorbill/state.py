@@ -91,13 +91,3 @@ def request_stop() -> bool:
         return False
     (d / "stop").touch()
     return True
-
-
-def add_jot(text: str) -> bool:
-    d = active_dir()
-    if d is None:
-        return False
-    stamp = dt.datetime.now().strftime("%H:%M")
-    with (d / "jots.md").open("a") as f:
-        f.write(f"- [{stamp}] {text}\n")
-    return True

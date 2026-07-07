@@ -2,8 +2,8 @@
 
 None of this is required. razorbill works through the TUI, the CLI, and
 (where available) desktop notifications. These recipes surface daemon state
-in bars and bind hotkeys; the building blocks are `statusline` (one line of
-state), `toggle`, `note`, and `last`.
+in bars; the building blocks are `statusline` (one line of state),
+`toggle`, and `last`.
 
 On Linux, notifications carry actions: Stop on the recording notification,
 Open on the notes-ready one. Notification daemons map these to a click or
@@ -31,14 +31,11 @@ Waybar:
 }
 ```
 
-i3, a jot hotkey through dmenu:
+i3, a record toggle hotkey:
 
 ```
-bindsym $mod+r exec --no-startup-id sh -c 'j=$(dmenu -p "jot:" < /dev/null); [ -n "$j" ] || exit 0; ~/.local/bin/razorbill note "$j" || notify-send --app-name=razorbill "razorbill" "No meeting is being recorded"'
+bindsym $mod+r exec --no-startup-id ~/.local/bin/razorbill toggle
 ```
-
-The same pattern works in sway, Hyprland, or any hotkey daemon: prompt for
-a line of text, pipe it to `razorbill note`.
 
 Running the daemon as a service: on Linux, copy `razorbill.service` to
 `~/.config/systemd/user/` and `systemctl --user enable --now razorbill`.

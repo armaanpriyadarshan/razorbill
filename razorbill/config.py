@@ -41,10 +41,8 @@ Write the notes as Markdown:
   ## Action items: as "- [ ] task (owner)" checkboxes; infer owners when clear.
   ## Open questions
 
-Use only information from the transcript and the owner's own notes. Do not
-invent facts. If the owner jotted notes during the meeting, treat each jot as
-an anchor: expand it with the relevant detail from the transcript and give it
-priority in the output.
+Use only information from the transcript and the provided context. Do not
+invent facts.
 """
 
 
