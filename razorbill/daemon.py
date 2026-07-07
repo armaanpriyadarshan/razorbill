@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import audio, meeting, openai_api, state
+from . import ask, audio, meeting, openai_api, state
 from .config import Config
 from .notify import notify, notify_action
 
@@ -30,6 +30,7 @@ class Daemon:
         self.last_mic_activity = 0.0
         self.processing = 0
         self.stop_flag = False
+        self._live: threading.Thread | None = None
 
     # --- state file ----------------------------------------------------------
     def _write_status(self) -> None:
@@ -72,6 +73,8 @@ class Daemon:
         assert d is not None
         self.rec.stop()
         self.dir = None
+        if self._live is not None and self._live.is_alive():
+            self._live.join(timeout=60)  # let the last live pass save its cache
         elapsed = time.time() - self.started
 
         # Auto-detected blips (mic checks) get discarded; manual recordings are
@@ -164,6 +167,42 @@ class Daemon:
             if died:
                 log.error("recorder exited unexpectedly, see ffmpeg.log in %s", self.dir)
             self._finish()
+            return
+
+        if self.cfg.live_transcript and (self._live is None or not self._live.is_alive()):
+            self._live = threading.Thread(target=self._live_pass, args=(self.dir,), daemon=True)
+            self._live.start()
+
+    def _live_pass(self, d: Path) -> None:
+        """Transcribe finished segments during the meeting and, when enabled,
+        run a proactive insight pass over the growing transcript."""
+        try:
+            cache = meeting.load_seg_cache(d)
+            pending = [p for p in meeting.completed_segments(d) if p.name not in cache]
+            if not pending:
+                return
+            for p in pending[:2]:  # bounded work per pass; the tick respawns us
+                cache[p.name] = openai_api.transcribe(
+                    self.cfg, self.api, p, offset=meeting.segment_offset(self.cfg, p))
+            meeting.save_seg_cache(d, cache)
+            md = meeting.live_markdown(cache)
+            (d / meeting.LIVE_MD).write_text(md)
+            if self.cfg.live_insights and md:
+                self._insight_pass(d, md)
+        except Exception as e:  # the final processing pass will catch up
+            log.warning("live pass failed: %s", e)
+
+    def _insight_pass(self, d: Path, transcript_md: str) -> None:
+        insights = d / meeting.INSIGHTS_MD
+        prior = insights.read_text() if insights.exists() else ""
+        reply = ask.insight(self.cfg, self.api, transcript_md, prior)
+        if not reply:
+            return
+        stamp = dt.datetime.now().strftime("%H:%M")
+        with insights.open("a") as f:
+            f.write(f"[{stamp}] {reply}\n\n")
+        log.info("insight: %s", reply.replace("\n", " / "))
+        notify(self.cfg.notify, "razorbill", reply[:220])
 
     def _on_signal(self, signum, frame) -> None:  # noqa: ARG002
         self.stop_flag = True

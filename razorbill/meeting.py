@@ -9,7 +9,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import openai_api, transcript
+from . import context, openai_api, transcript
 from .config import Config
 
 META = "meta.json"
@@ -39,10 +39,54 @@ def _segments(d: Path, prefix: str) -> list[Path]:
     return sorted(d.glob(f"{prefix}-*.ogg"))
 
 
-def _transcribe_channel(cfg: Config, api: openai_api.Api, files: list[Path]) -> list[dict]:
+SEG_CACHE = "live.json"
+LIVE_MD = "live.md"
+INSIGHTS_MD = "insights.md"
+
+
+def load_seg_cache(d: Path) -> dict:
+    """Per-segment transcription results, keyed by file name. Shared between
+    the live pass and final processing so no segment is transcribed twice."""
+    try:
+        return json.loads((d / SEG_CACHE).read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_seg_cache(d: Path, cache: dict) -> None:
+    (d / SEG_CACHE).write_text(json.dumps(cache))
+
+
+def completed_segments(d: Path) -> list[Path]:
+    """Segment files ffmpeg has finished writing (all but the newest per channel)."""
+    out: list[Path] = []
+    for prefix in ("me", "them"):
+        files = _segments(d, prefix)
+        out.extend(files[:-1])
+    return out
+
+
+def segment_offset(cfg: Config, path: Path) -> float:
+    return int(path.stem.split("-")[1]) * cfg.segment_seconds
+
+
+def live_markdown(cache: dict) -> str:
+    me = [s for name, segs in cache.items() if name.startswith("me-") for s in segs]
+    them = [s for name, segs in cache.items() if name.startswith("them-") for s in segs]
+    me = transcript.dedupe_echo(me, them)
+    return transcript.to_markdown(transcript.merge(me, them))
+
+
+def _transcribe_channel(cfg: Config, api: openai_api.Api, files: list[Path],
+                        cache: dict) -> list[dict]:
     def one(item: tuple[int, Path]) -> list[dict]:
         idx, path = item
-        return openai_api.transcribe(cfg, api, path, offset=idx * cfg.segment_seconds)
+        hit = cache.get(path.name)
+        if hit is not None:
+            return hit
+        segs = openai_api.transcribe(cfg, api, path, offset=idx * cfg.segment_seconds)
+        cache[path.name] = segs
+        return segs
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(one, enumerate(files)))
@@ -80,8 +124,10 @@ def process(cfg: Config, api: openai_api.Api, d: Path) -> Path:
 
 
 def _process(cfg: Config, api: openai_api.Api, d: Path, meta: dict) -> Path:
-    me = _transcribe_channel(cfg, api, _segments(d, "me"))
-    them = _transcribe_channel(cfg, api, _segments(d, "them"))
+    cache = load_seg_cache(d)  # live-mode results are reused, not re-billed
+    me = _transcribe_channel(cfg, api, _segments(d, "me"), cache)
+    them = _transcribe_channel(cfg, api, _segments(d, "them"), cache)
+    save_seg_cache(d, cache)
     me = transcript.dedupe_echo(me, them)  # speaker bleed when not on headphones
     utterances = transcript.merge(me, them)
     transcript_md = transcript.to_markdown(utterances)
@@ -91,6 +137,13 @@ def _process(cfg: Config, api: openai_api.Api, d: Path, meta: dict) -> Path:
     title, notes_md = "Untitled meeting", ""
     if utterances:
         user_msg = ""
+        if cfg.context_dirs:
+            try:
+                docs = context.gather(cfg, api, transcript_md[:3000])
+            except Exception:
+                docs = ""  # background docs are best-effort, never fatal
+            if docs:
+                user_msg += f"Background documents (context, not meeting content):\n\n{docs}\n\n"
         if jots:
             user_msg += f"My own notes taken during the meeting:\n{jots}\n\n"
         user_msg += f"Transcript:\n\n{transcript_md}"

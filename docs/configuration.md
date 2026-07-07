@@ -66,6 +66,14 @@ devices are named explicitly:
 Without `sink`, the microphone channel alone is recorded and transcribed;
 the diarizing model still labels the speakers it hears.
 
+## Live mode
+
+| option | default | notes |
+|---|---|---|
+| `live_transcript` | `false` | Transcribe segments during the meeting into `live.md` in the meeting directory. Pair with a smaller `segment_seconds` (120 gives a 2 to 4 minute lag). Live results are cached in `live.json` and reused by final processing. |
+| `live_insights` | `false` | Proactive pass after each live segment: surface at most two new items worth interrupting with, or stay silent. Needs `live_transcript`. One chat call per segment. |
+| `context_dirs` | `[]` | Directories of `.md`/`.txt` background documents used by note generation, `razorbill ask`, and insights. Under about 40 KB total they are injected whole; above that, a selection call picks up to six relevant files from an index. Hidden directories are skipped. |
+
 ## Notes
 
 | option | default | notes |

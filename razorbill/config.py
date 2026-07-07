@@ -80,6 +80,11 @@ class Config:
     sink: str = ""                   # override sink whose monitor is captured
     echo_cancel: bool = True         # speaker-safe recording, no headphones needed
 
+    # --- live mode ---
+    live_transcript: bool = False    # transcribe segments during the meeting (live.md)
+    live_insights: bool = False      # proactive insights from the live transcript
+    context_dirs: list[str] = field(default_factory=list)  # background docs for notes/ask/insights
+
     # --- notes ---
     notes_prompt_file: str = ""      # replace the built-in prompt
 

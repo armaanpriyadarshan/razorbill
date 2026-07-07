@@ -77,7 +77,35 @@ and the note list with a built-in Markdown reader.
 | `q` | quit |
 
 CLI: `status [--json]`, `statusline [--polybar]`, `toggle`, `start`,
-`stop`, `note "..."`, `last`, `reprocess`, `run`, `bird`.
+`stop`, `note "..."`, `ask "..."`, `last`, `reprocess`, `run`, `bird`.
+
+## Live mode
+
+Off by default. With `live_transcript = true`, the daemon transcribes each
+audio segment as it completes, maintaining a rolling transcript
+(`live.md` in the meeting directory) that lags the conversation by roughly
+one segment length; set `segment_seconds = 120` for a 2 to 4 minute lag.
+Segments transcribed live are cached and never re-billed by the final
+processing pass.
+
+On top of that:
+
+- `razorbill ask "..."` (or `a` in the TUI) answers a question against the
+  live transcript during a meeting, or against the most recent note after
+  one.
+- `live_insights = true` adds a proactive pass after each live segment: the
+  model sees the transcript, the background documents, and what it already
+  surfaced, and either stays silent or pushes at most two short items (a
+  relevant fact about a customer just mentioned, a commitment someone made,
+  a question worth asking before the call ends). Insights arrive as
+  notifications, in the TUI, and in `insights.md`.
+- `context_dirs` points at directories of Markdown or text files (a company
+  knowledge base, project docs). They ground note generation, `ask`, and
+  insights. Small collections are injected whole; larger ones go through a
+  selection step where the model picks the relevant files from an index.
+
+Live mode adds one transcription call per segment during the meeting and,
+with insights on, one chat call per segment.
 
 ## Platform support
 

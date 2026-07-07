@@ -17,7 +17,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Input, Label, ListItem, ListView, Markdown, Static
 
-from . import audio, config, meeting, openai_api, state
+from . import ask, audio, config, meeting, openai_api, state
 
 # The project mark (assets/razorbill.png) rendered as braille by
 # ascii-image-converter: a razorbill with its head tilted down.
@@ -91,6 +91,41 @@ class NoteScreen(Screen):
         self.app.flash(f"opened {self.path.name}")
 
 
+class AskScreen(Screen):
+    """Ask about the live meeting or the most recent note."""
+
+    BINDINGS = [
+        Binding("escape", "app.pop_screen", "back"),
+        Binding("q", "app.quit", "quit"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        yield Input(placeholder="ask about the meeting (enter to send)", id="ask-input")
+        yield VerticalScroll(Markdown("", id="ask-answer"), id="ask-scroll")
+        yield Static("", id="flash")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#ask-input", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        question = event.value.strip()
+        if not question:
+            return
+        self.query_one("#ask-answer", Markdown).update(f"**{question}**\n\nthinking ...")
+        self.run_worker(lambda: self._ask(question), thread=True)
+
+    def _ask(self, question: str) -> None:
+        try:
+            api = openai_api.resolve(self.app.cfg)
+            reply = ask.answer(self.app.cfg, api, question)
+        except Exception as e:
+            reply = f"could not answer: {e}"
+        self.app.call_from_thread(
+            self.query_one("#ask-answer", Markdown).update, f"**{question}**\n\n{reply}"
+        )
+
+
 class SetupScreen(Screen):
     """First run: collect and verify the OpenAI API key."""
 
@@ -138,6 +173,7 @@ class MainScreen(Screen):
         Binding("enter", "open_note", "read", show=True),
         Binding("e", "open_editor", "editor"),
         Binding("n", "jot", "jot"),
+        Binding("a", "ask", "ask"),
         Binding("r", "record", "record/stop"),
         Binding("p", "reprocess", "reprocess", show=False),
         Binding("q", "app.quit", "quit"),
@@ -156,6 +192,7 @@ class MainScreen(Screen):
             id="header",
         )
         yield Input(placeholder="jot a note into the meeting (enter to save)", id="jot")
+        yield Static("", id="insight")
         yield Static("meetings", id="section")
         yield ListView(id="notes")
         yield Static("", id="empty")
@@ -178,6 +215,23 @@ class MainScreen(Screen):
         w.set_classes(css)
         w.update(f"{glyph} {text}")
         self.query_one("#jot").display = css == "recording"
+        self._refresh_insight(css)
+
+    def _refresh_insight(self, css: str) -> None:
+        """Show the newest proactive insight while a meeting is recording."""
+        w = self.query_one("#insight", Static)
+        latest = ""
+        if css == "recording":
+            s = state.read_status()
+            f = Path(s.get("dir", "")) / meeting.INSIGHTS_MD
+            try:
+                blocks = [b.strip() for b in f.read_text().split("\n\n") if b.strip()]
+                latest = blocks[-1] if blocks else ""
+            except OSError:
+                pass
+        w.display = bool(latest)
+        if latest:
+            w.update(latest)
 
     def _maybe_refresh_notes(self) -> None:
         root = self.app.cfg.out_dir()
@@ -234,6 +288,9 @@ class MainScreen(Screen):
             self.app.flash("no meeting is being recorded", "warn")
             return
         self.query_one("#jot", Input).focus()
+
+    def action_ask(self) -> None:
+        self.app.push_screen(AskScreen())
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
@@ -327,6 +384,20 @@ class RazorbillApp(App):
         background: #1b1d23;
     }
     #jot:focus { border: tall #e05d4b; }
+    #insight {
+        margin: 0 2 1 2;
+        padding: 0 1;
+        height: auto;
+        color: #d9a24c;
+        border-left: thick #d9a24c;
+    }
+    #ask-input {
+        margin: 1 2 0 2;
+        border: tall #33363e;
+        background: #1b1d23;
+    }
+    #ask-input:focus { border: tall #e05d4b; }
+    #ask-scroll { padding: 1 3; }
     #section {
         margin: 1 2 0 2;
         color: #5c584f;

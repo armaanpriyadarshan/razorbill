@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0 (2026-07-06)
+
+- Live mode (`live_transcript`): segments are transcribed during the
+  meeting into a rolling `live.md`, cached so final processing never
+  re-bills them.
+- `razorbill ask "..."` and the `a` key in the TUI: questions answered
+  against the live transcript during a meeting, or the most recent note
+  after one.
+- Proactive insights (`live_insights`): after each live segment the model
+  surfaces at most two new items worth interrupting with, or stays silent.
+  Delivered as notifications, in the TUI, and in `insights.md`.
+- `context_dirs`: directories of Markdown or text background documents
+  that ground note generation, ask, and insights, with an index-based
+  selection step for large collections.
+
 ## 0.4.0 (2026-07-06)
 
 - Renamed from razorbird to razorbill, which is what the bird is actually

@@ -7,7 +7,7 @@ import json
 import sys
 import time
 
-from . import __version__, config, daemon, meeting, openai_api, state
+from . import __version__, ask, config, daemon, meeting, openai_api, state
 
 # polybar format colors
 REC_COLOR = "#e06060"
@@ -99,6 +99,12 @@ def cmd_stop(_args) -> None:
     print("stopping. Notes will be generated now")
 
 
+def cmd_ask(args) -> None:
+    cfg = config.load()
+    api = openai_api.resolve(cfg)
+    print(ask.answer(cfg, api, " ".join(args.question)))
+
+
 def cmd_bird(_args) -> None:
     from importlib.resources import files
 
@@ -140,6 +146,8 @@ def main() -> None:
     n.add_argument("text", nargs="+")
     sub.add_parser("start", help="start recording now, without waiting for detection")
     sub.add_parser("stop", help="stop the current recording and generate notes")
+    q = sub.add_parser("ask", help="ask about the live meeting or the latest note")
+    q.add_argument("question", nargs="+")
     sub.add_parser("reprocess", help="retry failed/unfinished meetings")
     sub.add_parser("bird", help="print the ASCII artwork")
 
@@ -147,6 +155,7 @@ def main() -> None:
     cmd = args.cmd or "tui"
     {
         "tui": cmd_tui,
+        "ask": cmd_ask,
         "bird": cmd_bird,
         "run": cmd_run,
         "status": cmd_status,
