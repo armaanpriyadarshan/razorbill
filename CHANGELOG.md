@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.2 (2026-07-07)
+
+- The TUI copilot area shows only the newest insight; the full history
+  stays in `insights.md` inside the meeting directory.
+
 ## 0.15.1 (2026-07-07)
 
 - Shutdown no longer waits on note generation. Processing ran on a

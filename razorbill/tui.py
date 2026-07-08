@@ -307,7 +307,8 @@ class MainScreen(Screen):
             sc.scroll_end(animate=False)
 
     def _refresh_insight(self, css: str) -> None:
-        """The copilot feed: the last few insights, newest emphasized."""
+        """The newest copilot insight, nothing else; history stays in
+        insights.md inside the meeting directory."""
         w = self.query_one("#insight", Static)
         blocks: list[str] = []
         if css == "recording":
@@ -322,13 +323,7 @@ class MainScreen(Screen):
             self._insight_count = len(blocks)
             return
         self._insight_count = len(blocks)
-        feed = Text(no_wrap=False)
-        for i, block in enumerate(blocks[-3:]):
-            if i:
-                feed.append("\n")
-            newest = block is blocks[-1]
-            feed.append(block, style="#d9a24c" if newest else "#7a6a45")
-        w.update(feed)
+        w.update(Text(blocks[-1], style="#d9a24c", no_wrap=False))
 
     def _maybe_refresh_notes(self) -> None:
         root = self.app.cfg.out_dir()
