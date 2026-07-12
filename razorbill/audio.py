@@ -112,8 +112,11 @@ def mic_capture_apps(cfg: Config, exclude_pids: set[int] | None = None) -> list[
             continue  # audio-filter plumbing (e.g. echo-cancel's own capture)
         if _prop(props, "application.process.id") in excluded:
             continue
-        name = _prop(props, "application.name") or _prop(props, "application.process.binary") or "unknown"
-        haystack = f"{name} {_prop(props, 'media.name')}".lower()
+        binary = _prop(props, "application.process.binary")
+        name = _prop(props, "application.name") or binary or "unknown"
+        # Match ignores against the binary too: Discord's stream is named
+        # "WEBRTC VoiceEngine", so only the binary says "Discord".
+        haystack = f"{name} {binary} {_prop(props, 'media.name')}".lower()
         if any(ig in haystack for ig in ignores):
             continue
         apps.append(name)

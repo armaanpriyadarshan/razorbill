@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.3 (2026-07-12)
+
+- `ignore_apps` also matches the app's process binary. Some apps name
+  their mic stream after their audio engine (Discord's is "WEBRTC
+  VoiceEngine"), so ignoring them by app name never matched; now
+  `ignore_apps = ["discord"]` works as documented.
+
 ## 0.15.2 (2026-07-07)
 
 - The TUI copilot area shows only the newest insight; the full history
