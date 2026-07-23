@@ -47,6 +47,20 @@ notes, or a local transcription server with a cloud notes model.
 | `sink` | empty | System-audio device for the "Them" channel. On Linux, razorbill records this sink's monitor (default sink when empty). On macOS and Windows, empty disables the channel. |
 | `echo_cancel` | `true` | Linux only: load PipeWire's echo-cancel module and route audio through it while the daemon runs, so speakers do not bleed into the mic. Defaults are restored on shutdown. Ignored elsewhere. |
 
+## Screen recording
+
+| option | default | notes |
+|---|---|---|
+| `record_video` | `true` | Record the full screen for the length of each meeting. During processing the meeting audio (mic plus system audio, mixed) is muxed in and the playable `.mkv` is moved next to the note under the same name, referenced by a `video:` frontmatter line. Linux (X11) and macOS; ignored on Windows. Video is best-effort: a capture failure notifies once and the meeting continues as audio only. |
+| `video_fps` | `15` | Capture frame rate, the main quality/size knob. Screen content at 1080p and 15 fps lands around 100-400 MB per hour. |
+| `video_screen` | empty | Which display to record. Linux: an X display such as `:0` (default: `$DISPLAY`, then `:0`; set this explicitly if the daemon runs from an environment without `DISPLAY`, such as some systemd setups). macOS: an avfoundation screen device such as `Capture screen 1` (default `Capture screen 0`; list devices with `ffmpeg -f avfoundation -list_devices true -i ""`). |
+
+macOS needs the Screen Recording permission (System Settings > Privacy &
+Security > Screen Recording) granted to whatever hosts the daemon
+(Terminal, or the launchd binary). Until granted, the capture process
+exits immediately, razorbill notifies once, and the meeting is recorded
+as audio only.
+
 ## Platform devices
 
 Automatic detection, default-device discovery, and echo cancellation are
@@ -76,12 +90,9 @@ the diarizing model still labels the speakers it hears.
 | `deepgram_api_key` | empty | Required for `live_mode = "deepgram"`. The live stream is the only thing it is used for. |
 | `deepgram_model` | `nova-3` | Deepgram model for the live stream. |
 | `deepgram_diarize` | `true` | Voice diarization on the live stream: multiple remote speakers become Them (A), Them (B). Channel attribution (Me vs Them) is always on when a system-audio device exists. |
-| `live_insights` | `false` | Copilot pass on every live utterance: suggested answers, one-line explanations of things just mentioned, follow-up questions, or silence. Passes coalesce (one in flight, latest transcript wins), so cost scales with conversation activity. Needs `live_transcript`. |
-| `insight_model` | empty | Chat model for copilot passes. Empty uses `notes_model`; a smaller model such as `gpt-5.4-mini` roughly halves pass time with little quality loss on one-line tips. |
-| `insight_priority` | `false` | Request OpenAI's priority service tier for copilot passes. Costs more; only worth testing if copilot latency matters to you. |
 | `silence_stop_minutes` | `10.0` | Backstop: end the meeting after this long with no speech in the live transcript, with an actionable warning notification at 3 minutes. Covers apps that keep actively capturing after a call ends (paused mic streams already do not count as meetings). After a silence stop, no new recording starts until the mic is released once. `0` disables. |
-| `context_dirs` | `[]` | Directories of `.md`/`.txt` background documents used by note generation, `razorbill ask`, and insights. Under about 40 KB total they are injected whole; above that, a selection call picks up to six relevant files from an index. Hidden directories are skipped. |
-| `calendar_ics_url` | empty | Read-only ICS feed for calendar awareness (Google Calendar: Settings, your calendar, "Secret address in iCal format"; Outlook: "Publish calendar"). At recording start the current event's title, attendees, and description are resolved (feed cached 15 minutes) and ground the copilot, `ask`, note generation (including the title), and background-document selection. Common recurrence rules are supported; moved single instances of a series are not. |
+| `context_dirs` | `[]` | Directories of `.md`/`.txt` background documents used by note generation and `razorbill ask`. Under about 40 KB total they are injected whole; above that, a selection call picks up to six relevant files from an index. Hidden directories are skipped. |
+| `calendar_ics_url` | empty | Read-only ICS feed for calendar awareness (Google Calendar: Settings, your calendar, "Secret address in iCal format"; Outlook: "Publish calendar"). At recording start the current event's title, attendees, and description are resolved (feed cached 15 minutes) and ground `ask`, note generation (including the title), and background-document selection. Common recurrence rules are supported; moved single instances of a series are not. |
 
 ## Notes
 

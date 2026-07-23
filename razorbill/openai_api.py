@@ -131,17 +131,14 @@ def transcribe(cfg: Config, api: Api, path: Path, offset: float) -> list[dict]:
     return out
 
 
-def chat(cfg: Config, api: Api, system: str, user: str, model: str = "",
-         priority: bool = False) -> str:
+def chat(cfg: Config, api: Api, system: str, user: str) -> str:
     payload = {
-        "model": model or cfg.notes_model,
+        "model": cfg.notes_model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
-    if priority:
-        payload["service_tier"] = "priority"
     body = json.dumps(payload).encode()
     resp = _post(f"{api.notes_base}/chat/completions", api.notes_key, body, "application/json")
     try:

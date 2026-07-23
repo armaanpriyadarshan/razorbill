@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.16.0 (2026-07-22)
+
+- **Breaking**: the live copilot feature is removed, including the config
+  keys `live_insights`, `insight_model`, and `insight_priority`. Delete
+  them from `~/.config/razorbill/config.toml`; razorbill refuses to start
+  while they are present (unknown keys are fatal by design). `razorbill
+  ask`, the live transcript, and the TUI captions are unchanged; the TUI
+  no longer has an insight area and `insights.md` is no longer written.
+- Meeting screen recording, on by default on Linux (X11) and macOS. One
+  ffmpeg process captures the full screen (video only, so a quiet audio
+  device can never stall it) into `screen.mkv`; processing muxes in the
+  recorded meeting audio, mic plus system audio mixed, and moves the file
+  next to the note under the same name, referenced by a `video:`
+  frontmatter line. New config keys: `record_video` (default true),
+  `video_fps` (15), and `video_screen` (display override). Video is
+  best-effort: a capture failure notifies once and the meeting continues
+  as audio only. Windows ignores `record_video`.
+- macOS needs the Screen Recording permission granted to whatever hosts
+  the daemon; until then, meetings record as audio only after a single
+  notification. The macOS video path is untested on hardware so far.
+
 ## 0.15.3 (2026-07-12)
 
 - `ignore_apps` also matches the app's process binary. Some apps name

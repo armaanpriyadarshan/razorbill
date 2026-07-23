@@ -44,6 +44,14 @@ segment_seconds = 600       # chunk size uploaded to the transcription API
 # source = ""               # override mic (pactl list sources short)
 # sink = ""                 # override speaker whose monitor is captured
 
+# --- screen recording ------------------------------------------------------------
+record_video = true         # record the screen during meetings, muxed with the
+                            # meeting audio into one .mkv next to the note.
+                            # Linux (X11) and macOS; ignored on Windows.
+# video_fps = 15            # quality/size knob (~100-400 MB/h at 1080p15)
+# video_screen = ""         # Linux: X display (default $DISPLAY, then :0)
+                            # macOS: screen device (default "Capture screen 0")
+
 # --- live mode ------------------------------------------------------------------
 live_transcript = false     # rolling transcript during the meeting (live.md)
 live_mode = "realtime"      # "realtime": OpenAI websocket stream, text within seconds
@@ -54,15 +62,12 @@ realtime_model = "gpt-realtime-whisper"
                               # live Me/Them labels via channel separation)
 # deepgram_model = "nova-3"
 # deepgram_diarize = true     # split remote voices into Them (A)/(B) live
-live_insights = false       # copilot pass on every live utterance
-# insight_model = "gpt-5.4-mini"          # faster model for copilot passes; empty uses notes_model
-# insight_priority = true                 # OpenAI priority tier for copilot passes (costs more)
 silence_stop_minutes = 10.0 # backstop: stop after this long with no speech
                             # (apps can hold the mic after a call); 0 = off
-# context_dirs = ["~/notes/company"]   # background docs for notes, ask, and insights
+# context_dirs = ["~/notes/company"]   # background docs for notes and ask
 # calendar_ics_url = "https://calendar.google.com/calendar/ical/.../basic.ics"
 #   read-only ICS feed; the current event's title, attendees, and description
-#   ground the copilot, ask, notes, and document selection
+#   ground ask, notes, and document selection
 
 # --- notes ----------------------------------------------------------------------
 # notes_prompt_file = "~/.config/razorbill/prompt.md"   # replace built-in prompt

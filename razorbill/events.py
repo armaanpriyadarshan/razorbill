@@ -3,8 +3,8 @@
 `calendar_ics_url` points at a read-only calendar feed (Google Calendar:
 Settings, "Secret address in iCal format"; Outlook: "Publish calendar").
 When a recording starts, the daemon resolves which event is happening and
-gives its title, attendees, and description to the copilot, `ask`, note
-generation, and background-document selection.
+gives its title, attendees, and description to `ask`, note generation, and
+background-document selection.
 
 The parser covers what real meeting calendars contain: timed VEVENTs with
 TZID/UTC/floating times, folded lines, ATTENDEE/ORGANIZER, and the common

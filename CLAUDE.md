@@ -1,7 +1,7 @@
 # razorbill
 
-Meeting transcription and notes from system audio, with a live in-call
-copilot. Python 3.11+, package name `razorbill-notes`, command `razorbill`.
+Meeting transcription, notes, and screen recording from system audio.
+Python 3.11+, package name `razorbill-notes`, command `razorbill`.
 
 ## Commands
 
@@ -22,10 +22,14 @@ One module per concern, all under `razorbill/`:
   auto-detection + echo cancel), avfoundation (macOS), dshow (Windows).
   One ffmpeg process per recorded channel; `mixed_pcm` mixes both into
   one PCM stream for the live transcription adapters.
+- `video.py`: meeting screen recording. One ffmpeg captures the full
+  screen (x11grab on Linux, avfoundation screen device on macOS), video
+  only, into `screen.mkv`; a pulse monitor with an idle sink delivers no
+  data and would stall a live audio mux. `mux()` merges the recorded
+  audio segments in at processing time; `meeting.py` moves the result
+  next to the note.
 - `daemon.py`: watch loop; writes `status.json` each tick; spawns a
-  processing thread per finished meeting. Owns the live copilot: a
-  coalescing worker (one pass in flight, latest transcript wins) kicked
-  by every utterance and, on Deepgram, by growing partials.
+  processing thread per finished meeting.
 - `ws.py`: minimal stdlib WebSocket client (wss, resumable frame parser,
   text and binary frames).
 - `realtime.py`: streaming transcription over OpenAI `/v1/realtime`.
@@ -41,10 +45,10 @@ One module per concern, all under `razorbill/`:
   `/chat/completions`; per-service endpoint overrides.
 - `context.py`: background-document injection from `context_dirs`; small
   collections go in whole, large ones through index-based selection.
-- `ask.py`: prompts and assembly for `razorbill ask` and the copilot
-  (`insight`); grounded in `context.py` output.
+- `ask.py`: prompts and assembly for `razorbill ask`; grounded in
+  `context.py` output.
 - `events.py`: ICS calendar feed parsing and current-event resolution
-  (common recurrence rules only); the event grounds copilot, ask, notes,
+  (common recurrence rules only); the event grounds ask, notes,
   and document selection.
 - `transcript.py`: merge the me/them channels by timestamp, drop silence
   hallucinations and echo duplicates.
@@ -55,7 +59,7 @@ One module per concern, all under `razorbill/`:
   coupling.
 
 Live-meeting artifacts inside a meeting directory: `live.md` (rolling
-transcript), `insights.md` (copilot output), `live.json` (segment cache,
+transcript), `screen.mkv` (screen recording), `live.json` (segment cache,
 segments mode only).
 
 ## Conventions
@@ -66,5 +70,4 @@ segments mode only).
   language, no em dashes.
 - Every subprocess call has a timeout and failure path; the daemon must
   survive any API or audio failure (log, notify, keep audio, continue).
-- Latency-sensitive code paths (live copilot) budget their inputs; see
-  `COACH_DOC_CHARS` in `ask.py` before growing a prompt.
+- Video capture is best-effort; its failure never ends or blocks a meeting.

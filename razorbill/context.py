@@ -72,8 +72,7 @@ def gather(cfg: Config, api: openai_api.Api, purpose: str,
            limit: int = MAX_CONTEXT_CHARS) -> str:
     """Return background-document text relevant to `purpose`, or "".
 
-    `limit` caps the injected text; latency-sensitive callers (the live
-    copilot) pass a small one since prefill time scales with input.
+    `limit` caps the injected text.
     """
     candidates = files(cfg)
     if not candidates:

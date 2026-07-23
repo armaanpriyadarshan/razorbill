@@ -8,7 +8,6 @@ from . import context, events, meeting, openai_api, state
 from .config import Config
 
 LIVE_MD = "live.md"
-COACH_DOC_CHARS = 8_000  # copilot doc budget; prefill time scales with input
 
 SYSTEM = """\
 You answer questions about a meeting. You get background documents (when
@@ -49,52 +48,3 @@ def answer(cfg: Config, api: openai_api.Api, question: str) -> str:
 
     parts.append(f"Question: {question}")
     return openai_api.chat(cfg, api, SYSTEM, "\n\n".join(parts))
-
-
-INSIGHT_SYSTEM = """\
-You are a silent copilot for one side of a live call ("Me"; the other
-participants are "Them"). You run after every new utterance, seeing the
-transcript so far, background documents, and everything you already sent.
-Decide whether a short message would help Me in this moment. Send one when:
-
-- Them just asked Me a question: suggest the answer in one line, grounded
-  in the background documents when they apply.
-- A company, product, tool, metric, or strategy came up that the documents
-  know about, or that deserves a one-line explanation.
-- Them is running an identifiable play (an intro framing, a pricing anchor,
-  an objection script): name it and what it means for Me.
-- A topic is wrapping up: the one follow-up question Me should ask.
-
-A line marked "[now, being said]" is an utterance still in progress; treat
-it as the freshest signal (for example, the start of a question you can
-already prepare Me for), and expect it to be cut off mid-thought.
-
-Hard rules: never summarize or restate the conversation, never repeat or
-rephrase anything you already sent, no generic advice, no filler. At most
-two bullets, each one line, telegraphic. When nothing new would help right
-now, reply with exactly: SILENT
-"""
-
-
-def insight(cfg: Config, api: openai_api.Api, transcript_md: str, prior: str,
-            docs: str | None = None, event: str = "") -> str:
-    """One copilot pass over the live transcript. Returns "" when silent.
-
-    `docs` lets the caller reuse a cached background-document selection;
-    None gathers fresh (adds a selection call for large collections).
-    `event` is the calendar block for this meeting, when known.
-    """
-    parts = []
-    if event:
-        parts.append(f"Calendar event for this meeting:\n{event}")
-    if docs is None:
-        docs = context.gather(cfg, api, transcript_md[-3000:], limit=COACH_DOC_CHARS)
-    if docs:
-        parts.append(f"Background documents:\n\n{docs}")
-    parts.append(f"Transcript so far:\n\n{transcript_md[-4000:]}")
-    parts.append(f"Already sent to Me (never repeat or rephrase these):\n"
-                 f"{prior[-2000:] or 'nothing yet'}")
-    reply = openai_api.chat(cfg, api, INSIGHT_SYSTEM, "\n\n".join(parts),
-                            model=cfg.insight_model,
-                            priority=cfg.insight_priority).strip()
-    return "" if not reply or reply.upper().startswith(("SILENT", "NONE")) else reply

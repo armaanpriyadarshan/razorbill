@@ -11,8 +11,8 @@ things the OpenAI path cannot do:
   on top splits multiple remote speakers into Them (A), Them (B).
 
 Finalized utterances go to `on_line(text, label)`; growing partials go to
-`on_partial(text)` pre-labeled, which lets the live copilot react to a
-question while it is still being asked.
+`on_partial(text)` pre-labeled, which powers the TUI's live caption of the
+utterance still being spoken.
 """
 
 from __future__ import annotations

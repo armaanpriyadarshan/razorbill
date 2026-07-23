@@ -78,6 +78,16 @@ class Config:
     sink: str = ""                   # override sink whose monitor is captured
     echo_cancel: bool = True         # speaker-safe recording, no headphones needed
 
+    # --- screen recording ---
+    record_video: bool = True        # record the screen during meetings, muxed with
+                                     # the meeting audio into one playable file next
+                                     # to the note. Linux (X11) and macOS; ignored
+                                     # on Windows.
+    video_fps: int = 15
+    video_screen: str = ""           # Linux: X display to grab (default: $DISPLAY,
+                                     # then :0). macOS: avfoundation screen device
+                                     # (default "Capture screen 0").
+
     # --- live mode ---
     live_transcript: bool = False    # rolling transcript during the meeting (live.md)
     live_mode: str = "realtime"      # "realtime" (OpenAI websocket, ~1-2s lag),
@@ -87,18 +97,13 @@ class Config:
     deepgram_api_key: str = ""       # required for live_mode = "deepgram"
     deepgram_model: str = "nova-3"
     deepgram_diarize: bool = True    # split remote voices into Them (A)/(B) live
-    live_insights: bool = False      # copilot pass on every live utterance
-    insight_model: str = ""          # fast chat model for copilot passes; empty
-                                     # falls back to notes_model (higher latency)
-    insight_priority: bool = False   # OpenAI priority service tier for copilot
-                                     # passes: lower latency, higher price
     silence_stop_minutes: float = 10.0  # backstop: end the meeting after this long
                                         # with no speech at all (0 = off); covers
                                         # apps that actively hold the mic after a call
-    context_dirs: list[str] = field(default_factory=list)  # background docs for notes/ask/insights
+    context_dirs: list[str] = field(default_factory=list)  # background docs for notes and ask
     calendar_ics_url: str = ""       # read-only ICS feed; the current event's
-                                     # title/attendees/description ground the
-                                     # copilot, ask, notes, and doc selection
+                                     # title/attendees/description ground
+                                     # ask, notes, and doc selection
 
     # --- notes ---
     notes_prompt_file: str = ""      # replace the built-in prompt

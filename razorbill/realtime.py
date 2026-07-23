@@ -5,7 +5,7 @@ One ffmpeg process mixes the microphone and system audio into a single
 and the session loop collects finished utterances. Each utterance is passed
 to a callback within a couple of seconds of the words being spoken.
 
-This stream powers the live transcript and insights only. The segmented
+This stream powers the live transcript only. The segmented
 recording continues in parallel and the final note is still built from the
 batch pipeline, which keeps channel separation and diarization.
 """

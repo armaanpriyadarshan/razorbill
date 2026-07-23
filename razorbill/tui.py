@@ -193,7 +193,6 @@ class MainScreen(Screen):
             ),
             id="header",
         )
-        yield Static("", id="insight")
         yield Static("live transcript", id="live-section")
         yield VerticalScroll(id="live")
         yield Static("", id="live-partial")
@@ -209,7 +208,6 @@ class MainScreen(Screen):
         self._live_dir: Path | None = None
         self._live_count = 0
         self._partial_shown = ""
-        self._insight_count = 0
         self._delete_pending: tuple[Path | None, float] = (None, 0.0)
         self._refresh_status()
         self._refresh_notes()
@@ -225,7 +223,6 @@ class MainScreen(Screen):
         w = self.query_one("#status", Static)
         w.set_classes(css)
         w.update(f"{glyph} {text}")
-        self._refresh_insight(css)
 
     @staticmethod
     def _caption(stamp: str, label: str | None, text: str) -> Text:
@@ -305,25 +302,6 @@ class MainScreen(Screen):
 
         if fresh and at_bottom:
             sc.scroll_end(animate=False)
-
-    def _refresh_insight(self, css: str) -> None:
-        """The newest copilot insight, nothing else; history stays in
-        insights.md inside the meeting directory."""
-        w = self.query_one("#insight", Static)
-        blocks: list[str] = []
-        if css == "recording":
-            s = state.read_status()
-            f = Path(s.get("dir", "")) / meeting.INSIGHTS_MD
-            try:
-                blocks = [b.strip() for b in f.read_text().split("\n\n") if b.strip()]
-            except OSError:
-                pass
-        w.display = bool(blocks)
-        if not blocks or len(blocks) == self._insight_count:
-            self._insight_count = len(blocks)
-            return
-        self._insight_count = len(blocks)
-        w.update(Text(blocks[-1], style="#d9a24c", no_wrap=False))
 
     def _maybe_refresh_notes(self) -> None:
         root = self.app.cfg.out_dir()
@@ -473,13 +451,6 @@ class RazorbillApp(App):
     #status.processing { color: #d9a24c; }
     #status.idle { color: #8a857a; }
     #status.off { color: #5c584f; }
-    #insight {
-        margin: 0 2 1 2;
-        padding: 0 1;
-        height: auto;
-        color: #d9a24c;
-        border-left: thick #d9a24c;
-    }
     #live-section {
         margin: 0 2;
         color: #8a857a;

@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import ask, audio, context, deepgram, events, meeting, openai_api, realtime, state
+from . import audio, deepgram, events, meeting, openai_api, realtime, state, video
 from .config import Config
 from .notify import notify, notify_action
 
@@ -23,6 +23,7 @@ class Daemon:
         self.cfg = cfg
         self.api = api
         self.rec = audio.Recorder()
+        self.vid = video.VideoRecorder()
         self.ec = audio.EchoCancel()
         self.dir: Path | None = None
         self.app = ""
@@ -32,14 +33,7 @@ class Daemon:
         self.stop_flag = False
         self._live: threading.Thread | None = None
         self._rt: realtime.Realtime | None = None
-        # copilot worker state (coalescing: one pass in flight, latest wins)
-        self._coach_lock = threading.Lock()
-        self._coach_running = False
-        self._coach_pending = False
-        self._coach_docs: str | None = None
-        self._coach_docs_lines = 0
         self._partial = ""            # utterance in progress (deepgram interims)
-        self._partial_kicked_words = 0
         self._watchdog_done = False   # per-recording early capture check
         self._last_wall = time.time()
         self._last_speech = 0.0       # newest live-transcript activity
@@ -79,6 +73,11 @@ class Daemon:
         self._watchdog_done = False
         self._silence_notified = False
         self.rec.start(self.dir, self.cfg, source, monitor)
+        if self.cfg.record_video and video.supported():
+            try:
+                self.vid.start(self.dir, self.cfg)
+            except Exception as e:  # video is best-effort; audio always proceeds
+                log.warning("screen recording failed to start: %s", e)
         if self.cfg.live_transcript:
             if self.cfg.live_mode == "realtime":
                 self._rt = realtime.Realtime(
@@ -123,11 +122,8 @@ class Daemon:
             with lock, (d / meeting.LIVE_MD).open("a") as f:
                 f.write(f"**{head}** {text}\n\n")
             self._partial = ""
-            self._partial_kicked_words = 0
             self._last_speech = time.time()
             self._silence_notified = False
-            if self.cfg.live_insights:
-                self._coach_kick(d)
 
         return on_line
 
@@ -136,70 +132,11 @@ class Daemon:
             self._partial = text
             state.write_partial(text)
             if not text:
-                self._partial_kicked_words = 0
                 return
             self._last_speech = time.time()
             self._silence_notified = False
-            # react mid-utterance once enough new words accumulate; the
-            # coalescing worker absorbs the extra kicks
-            words = text.count(" ") + 1
-            if self.cfg.live_insights and words - self._partial_kicked_words >= 8:
-                self._partial_kicked_words = words
-                self._coach_kick(d)
 
         return on_partial
-
-    # --- live copilot ---------------------------------------------------------
-    # Every utterance triggers a pass; the only pacing is the model's own
-    # latency. While a pass is in flight new utterances set a pending flag,
-    # and the worker immediately reruns on the newest transcript when it
-    # finishes. Nothing waits on a clock.
-
-    def _coach_kick(self, d: Path) -> None:
-        with self._coach_lock:
-            self._coach_pending = True
-            if self._coach_running:
-                return
-            self._coach_running = True
-        threading.Thread(target=self._coach_loop, args=(d,), daemon=True).start()
-
-    def _coach_loop(self, d: Path) -> None:
-        while True:
-            with self._coach_lock:
-                if not self._coach_pending:
-                    self._coach_running = False
-                    return
-                self._coach_pending = False
-            try:
-                md = ""
-                if (d / meeting.LIVE_MD).exists():
-                    md = (d / meeting.LIVE_MD).read_text()
-                if self._partial:
-                    md += f"**[now, being said]** {self._partial}\n\n"
-                event = events.describe(events.read_event(d))
-                self._insight_pass(d, md, docs=self._coach_context(md, event),
-                                   event=event)
-            except Exception as e:
-                log.warning("copilot pass failed: %s", e)
-
-    def _coach_context(self, transcript_md: str, event: str = "") -> str:
-        """Background-document selection, cached and refreshed as the
-        conversation grows so the per-utterance path is one chat call.
-        The calendar event steers selection: attendee and company names
-        often match brain documents before anyone says them out loud."""
-        if not self.cfg.context_dirs:
-            return ""
-        lines = transcript_md.count("**[")
-        if self._coach_docs is None or lines - self._coach_docs_lines >= 10:
-            try:
-                purpose = f"{event}\n\n{transcript_md[-3000:]}" if event else transcript_md[-3000:]
-                self._coach_docs = context.gather(self.cfg, self.api, purpose,
-                                                  limit=ask.COACH_DOC_CHARS)
-                self._coach_docs_lines = lines
-            except Exception as e:
-                log.warning("context selection failed: %s", e)
-                self._coach_docs = self._coach_docs or ""
-        return self._coach_docs
 
     def _reload_ec(self) -> None:
         """Tear down and rebuild the echo-cancel plumbing (Linux only)."""
@@ -226,12 +163,12 @@ class Daemon:
         d, app = self.dir, self.app
         assert d is not None
         self.rec.stop()
+        self.vid.stop()
         self.dir = None
         if self._rt is not None:
             self._rt.shutdown()
             self._rt = None
-        self._coach_docs, self._coach_docs_lines = None, 0
-        self._partial, self._partial_kicked_words = "", 0
+        self._partial = ""
         state.write_partial("")
         if self._live is not None and self._live.is_alive():
             self._live.join(timeout=60)  # let the last live pass save its cache
@@ -301,6 +238,9 @@ class Daemon:
                 and not self.cfg.deepgram_api_key):
             log.error("live_mode = \"deepgram\" needs deepgram_api_key; "
                       "live transcript is off for this run")
+        if self.cfg.record_video and not video.supported():
+            log.info("record_video: screen capture is not supported on %s",
+                     audio.PLATFORM)
         # Recover meetings a previous run left unfinished: recorded but never
         # processed, or claimed by a process that no longer exists. At boot
         # no other worker can hold a claim, so every claim counts as dead.
@@ -379,6 +319,17 @@ class Daemon:
             self._finish()
             return
 
+        # Video death never ends the meeting; report it once and move on.
+        if self.vid.proc is not None and not self.vid.alive():
+            log.error("video recorder exited; audio recording continues "
+                      "(see %s in %s)", video.LOG_FILE, self.dir)
+            hint = (" On macOS, grant Screen Recording permission in System "
+                    "Settings > Privacy & Security." if audio.PLATFORM == "mac" else "")
+            notify(self.cfg.notify, "razorbill: screen recording stopped",
+                   f"The video recorder exited; the meeting is still being "
+                   f"recorded as audio.{hint}")
+            self.vid.abandon()
+
         # Early capture watchdog: 20 seconds in, a healthy recording has tens
         # of kilobytes of Opus on disk. Nothing at all means the source is
         # dead; _finish discards it, reloads echo cancel, and detection
@@ -414,8 +365,7 @@ class Daemon:
             self._live.start()
 
     def _live_pass(self, d: Path) -> None:
-        """Transcribe finished segments during the meeting and, when enabled,
-        run a proactive insight pass over the growing transcript."""
+        """Transcribe finished segments during the meeting."""
         try:
             cache = meeting.load_seg_cache(d)
             pending = [p for p in meeting.completed_segments(d) if p.name not in cache]
@@ -425,26 +375,9 @@ class Daemon:
                 cache[p.name] = openai_api.transcribe(
                     self.cfg, self.api, p, offset=meeting.segment_offset(self.cfg, p))
             meeting.save_seg_cache(d, cache)
-            md = meeting.live_markdown(cache)
-            (d / meeting.LIVE_MD).write_text(md)
-            if self.cfg.live_insights and md:
-                self._insight_pass(d, md)
+            (d / meeting.LIVE_MD).write_text(meeting.live_markdown(cache))
         except Exception as e:  # the final processing pass will catch up
             log.warning("live pass failed: %s", e)
-
-    def _insight_pass(self, d: Path, transcript_md: str, docs: str | None = None,
-                      event: str = "") -> None:
-        insights = d / meeting.INSIGHTS_MD
-        prior = insights.read_text() if insights.exists() else ""
-        reply = ask.insight(self.cfg, self.api, transcript_md, prior,
-                            docs=docs, event=event)
-        if not reply or not d.exists():  # meeting may have ended mid-pass
-            return
-        stamp = dt.datetime.now().strftime("%H:%M")
-        with insights.open("a") as f:
-            f.write(f"[{stamp}] {reply}\n\n")
-        log.info("insight: %s", reply.replace("\n", " / "))
-        notify(self.cfg.notify, "razorbill", reply[:220])
 
     def _on_signal(self, signum, frame) -> None:  # noqa: ARG002
         self.stop_flag = True

@@ -7,10 +7,10 @@
 
 <h1 align="center">razorbill</h1>
 
-Meeting transcription, notes, and a live in-call copilot from system
-audio. Bring your own key: any OpenAI-compatible endpoint works, with
-Deepgram as an optional live-transcription provider. TUI, CLI, and a
-background daemon; notes are plain Markdown files.
+Meeting transcription, notes, and screen recording from system audio.
+Bring your own key: any OpenAI-compatible endpoint works, with Deepgram
+as an optional live-transcription provider. TUI, CLI, and a background
+daemon; notes are plain Markdown files.
 
 <p align="center">
   <img src="assets/tui-main.svg" width="720" alt="razorbill TUI">
@@ -27,8 +27,12 @@ background daemon; notes are plain Markdown files.
   "Them (A)", "Them (B)"), merged by timestamp, and passed to a chat model
   (`gpt-5.5` by default) that writes the note: title, summary, decisions,
   action items, open questions, full transcript.
+- On Linux (X11) and macOS the screen is also recorded for the length of
+  the meeting, muxed with the meeting audio into one playable file (see
+  Screen recording below).
 - Output is one Markdown file per meeting in `output_dir`
-  (`~/Documents/meetings` by default). Audio is deleted after successful
+  (`~/Documents/meetings` by default), with the screen recording next to
+  it under the same name. Audio is deleted after successful
   transcription; on failure it is kept and `razorbill reprocess` retries.
 
 ## Install
@@ -63,8 +67,7 @@ elsewhere).
 
 `razorbill` opens the TUI: live daemon status, rolling live captions
 during recording (with live mode on, including the sentence currently
-being spoken), copilot output, and the note list with a built-in Markdown
-reader.
+being spoken), and the note list with a built-in Markdown reader.
 
 | key | action |
 |---|---|
@@ -91,8 +94,8 @@ Two implementations, selected by `live_mode`:
   `/v1/realtime`; the stream reconnects with backoff if it drops.
 - `deepgram`: audio streams to Deepgram's `/v1/listen` (`nova-3` by
   default; needs `deepgram_api_key`). Deepgram sends interim results while
-  a sentence is still being spoken, so the copilot can react to a question
-  before it ends; finalized utterances land in the transcript on
+  a sentence is still being spoken, so the TUI captions the utterance in
+  progress; finalized utterances land in the transcript on
   endpointing, a few hundred milliseconds after a pause. With a
   system-audio device, the two sides are sent as separate channels, so
   live transcript lines are labeled Me and Them by construction, and voice
@@ -112,20 +115,9 @@ On top of the rolling transcript:
 - `razorbill ask "..."` (or `a` in the TUI) answers a question against the
   live transcript during a meeting, or against the most recent note after
   one.
-- `live_insights = true` runs a copilot pass on every utterance as it lands
-  in the transcript. The model sees the conversation, the background
-  documents, and everything it already sent, then either stays silent or
-  pushes at most two one-line items: a suggested answer to a question just
-  asked, what the documents know about a company or tool just mentioned,
-  the play the other side is running, or the follow-up question worth
-  asking. There is no polling interval; the only pacing is model latency
-  (a few seconds), and passes coalesce so a burst of utterances yields one
-  pass over the newest state. Output arrives as notifications, in the TUI,
-  and in `insights.md`. `insight_model` selects a faster chat model for
-  these passes; unset, they use `notes_model`.
 - `context_dirs` points at directories of Markdown or text files (a company
-  knowledge base, project docs). They ground note generation, `ask`, and
-  insights. Small collections are injected whole; larger ones go through a
+  knowledge base, project docs). They ground note generation and `ask`.
+  Small collections are injected whole; larger ones go through a
   selection step where the model picks the relevant files from an index.
 - `calendar_ics_url` points at a read-only ICS feed (Google Calendar's
   "Secret address in iCal format", or an Outlook published calendar). When
@@ -140,8 +132,27 @@ On top of the rolling transcript:
   released once.
 
 Cost: realtime transcription is billed per audio minute for the duration of
-the meeting; the copilot adds roughly one chat call per utterance during
-active conversation.
+the meeting.
+
+## Screen recording
+
+On by default on Linux (X11) and macOS; Windows records audio only. For
+the length of a meeting, one ffmpeg process captures the full screen,
+video only, so a quiet audio device can never stall the capture. During
+processing, the recorded audio (microphone plus system audio, mixed) is
+muxed in, and the finished `.mkv` lands next to the note under the same
+name; the note's frontmatter gets a `video:` line pointing at it.
+
+- `record_video = false` turns it off.
+- `video_fps` (default 15) is the quality/size knob; screen content at
+  1080p and 15 fps lands around 100-400 MB per hour.
+- `video_screen` selects the display: an X display like `":0"` on Linux,
+  an avfoundation screen device like `"Capture screen 1"` on macOS.
+- Video is best-effort: if the capture fails to start or dies mid-meeting,
+  you get one notification and the meeting continues as audio only.
+- macOS requires the Screen Recording permission (System Settings >
+  Privacy & Security) for whatever runs the daemon; until granted, the
+  first meeting triggers the permission prompt and records audio only.
 
 ## Platform support
 
@@ -150,6 +161,7 @@ active conversation.
 | automatic meeting detection | yes | no | no |
 | manual recording (TUI/CLI) | yes | yes | yes |
 | system-audio ("Them") channel | yes | via loopback device | via capture device |
+| meeting screen recording | yes (X11) | yes | no |
 | echo cancellation | yes | no | no |
 | notifications | yes | yes | no |
 | TUI, notes, configuration | yes | yes | yes |
@@ -194,19 +206,20 @@ Audio goes to the configured transcription endpoint; with live mode on, it
 also streams during the meeting to the live-transcription provider (OpenAI
 or Deepgram). Transcript text and any `context_dirs` documents selected as
 relevant go to the configured chat endpoint. Local audio is deleted after
-transcription (`keep_audio = false`). No telemetry. Recording calls is
+transcription (`keep_audio = false`). Screen recordings are written next
+to the note and never leave the machine. No telemetry. Recording calls is
 regulated in many jurisdictions; know your local rules.
 
 ## Development
 
 `uv sync` for the environment, `uv build` for distributions. One module
 per concern: `audio.py` (capture, detection, platform backends),
-`daemon.py` (watch loop, live copilot), `openai_api.py` (stdlib HTTP
-client), `ws.py` (stdlib WebSocket client), `realtime.py` and
+`video.py` (screen recording), `daemon.py` (watch loop), `openai_api.py`
+(stdlib HTTP client), `ws.py` (stdlib WebSocket client), `realtime.py` and
 `deepgram.py` (streaming transcription adapters), `transcript.py` (merge,
 echo dedup), `meeting.py` (post-meeting pipeline), `context.py`
-(background-document selection), `ask.py` (questions and copilot
-prompts), `tui.py` (Textual interface), `state.py` (file-based IPC). The
+(background-document selection), `ask.py` (question prompts and
+assembly), `tui.py` (Textual interface), `state.py` (file-based IPC). The
 daemon imports nothing outside the standard library; Textual is needed
 only for the TUI.
 

@@ -9,7 +9,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import context, events, openai_api, transcript
+from . import context, events, openai_api, transcript, video
 from .config import Config
 
 META = "meta.json"
@@ -40,7 +40,6 @@ def _segments(d: Path, prefix: str) -> list[Path]:
 
 SEG_CACHE = "live.json"
 LIVE_MD = "live.md"
-INSIGHTS_MD = "insights.md"
 
 
 def load_seg_cache(d: Path) -> dict:
@@ -157,29 +156,36 @@ def _process(cfg: Config, api: openai_api.Api, d: Path, meta: dict) -> Path:
     else:
         notes_md = "_No speech detected._"
 
+    out = cfg.out_dir() / f"{d.name[:15]}-{_slug(title)}.md"  # YYYY-MM-DD-HHMM
+    # Move the screen recording out before the cleanup below can delete it.
+    # A crash between this move and the "done" status makes a reprocess run
+    # regenerate the note, possibly under a different slug; the shared
+    # timestamp prefix keeps note and video sorted together regardless.
+    video_name = _move_video(d, out.with_suffix(".mkv"))
+
     started = meta.get("started", d.name)
     day, clock = started[:10], started[11:16]
-    front = "\n".join(
-        [
-            "---",
-            f"title: {json.dumps(title)}",
-            f"date: {day} {clock}",
-            f"duration_minutes: {_duration_minutes(meta)}",
-            f"app: {json.dumps(meta.get('app', 'unknown'))}",
-            f"models: {cfg.transcribe_model} + {cfg.notes_model}",
-            "---",
-        ]
-    )
-    body = [front, f"# {title}", notes_md]
+    front_lines = [
+        "---",
+        f"title: {json.dumps(title)}",
+        f"date: {day} {clock}",
+        f"duration_minutes: {_duration_minutes(meta)}",
+        f"app: {json.dumps(meta.get('app', 'unknown'))}",
+        f"models: {cfg.transcribe_model} + {cfg.notes_model}",
+    ]
+    if video_name:
+        front_lines.append(f"video: {video_name}")
+    front_lines.append("---")
+    body = ["\n".join(front_lines), f"# {title}", notes_md]
     body += ["## Transcript", transcript_md or "_empty_"]
 
-    out = cfg.out_dir() / f"{d.name[:15]}-{_slug(title)}.md"  # YYYY-MM-DD-HHMM
     out.write_text("\n\n".join(body) + "\n")
 
     meta["status"] = "done"
     write_meta(d, meta)
-    if cfg.keep_audio:
-        # keep the directory but mark it done so reprocess skips it
+    if cfg.keep_audio or (d / video.VIDEO_FILE).exists():
+        # keep the directory: the user wants the audio, or a failed video
+        # move left the only copy here. Marked done so reprocess skips it.
         pass
     else:
         shutil.rmtree(d)
@@ -211,6 +217,25 @@ def audio_bytes(d: Path) -> int:
     delivered no data (dead PipeWire node, e.g. stale echo-cancel after
     suspend), since even silence encodes to steady Opus output."""
     return sum(f.stat().st_size for f in d.glob("*.ogg"))
+
+
+def _move_video(d: Path, dest: Path) -> str:
+    """Finish the screen recording: mux the meeting audio into it and put
+    the result next to the note, same stem. Falls back to moving the
+    silent capture when the mux fails. Returns the file name, or "" when
+    there is no video or nothing could be moved (the meeting directory is
+    then kept so the file is never lost)."""
+    src = d / video.VIDEO_FILE
+    try:
+        if not src.exists() or src.stat().st_size == 0:
+            return ""
+        if video.mux(d, _segments(d, "me"), _segments(d, "them"), dest):
+            src.unlink()
+            return dest.name
+        shutil.move(str(src), str(dest))  # silent video beats no video
+        return dest.name
+    except OSError:
+        return ""
 
 
 def delete_note(cfg: Config, path: Path) -> Path:
