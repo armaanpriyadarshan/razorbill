@@ -36,6 +36,8 @@ notify = true                            # desktop notifications (notify-send)
 echo_cancel = true          # no headphones needed: routes audio through
                             # PipeWire's echo-cancel while the daemon runs
 min_meeting_seconds = 60    # discard shorter recordings (mic checks, misfires)
+autotrash = true            # discard no-show meetings (no audible speech) before
+                            # transcription; they cost no tokens and leave no note
 grace_seconds = 20          # mic must be free this long before the meeting "ends"
 # poll_seconds = 2.0        # detection poll interval
 max_hours = 4.0             # safety cap per recording

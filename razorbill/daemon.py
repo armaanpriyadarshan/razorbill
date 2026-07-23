@@ -159,7 +159,7 @@ class Daemon:
                          f"Detected: {app}", "stop", "Stop"):
             state.request_stop()
 
-    def _finish(self) -> None:
+    def _finish(self, trash: bool = False) -> None:
         d, app = self.dir, self.app
         assert d is not None
         self.rec.stop()
@@ -173,6 +173,13 @@ class Daemon:
         if self._live is not None and self._live.is_alive():
             self._live.join(timeout=60)  # let the last live pass save its cache
         elapsed = time.time() - self.started
+
+        if trash:
+            log.info("recording trashed by request (%s, %.0f min)", app, elapsed / 60)
+            notify(self.cfg.notify, "Recording trashed",
+                   f"{app}: recording discarded. No notes.")
+            meeting.discard(d)
+            return
 
         # A recording with essentially no bytes means the capture source was
         # dead (the known cause: audio plumbing gone stale across suspend).
@@ -209,6 +216,11 @@ class Daemon:
     def _process(self, d: Path) -> None:
         try:
             out = meeting.process(self.cfg, self.api, d)
+            if out is None:
+                log.info("meeting autotrashed: no audible speech (%s)", d.name)
+                notify(self.cfg.notify, "Meeting trashed",
+                       "No speech was detected, so no notes were generated.")
+                return
             log.info("notes written: %s", out)
             threading.Thread(target=self._offer_open, args=(out,), daemon=True).start()
         except Exception as e:  # keep the daemon alive whatever the API does
@@ -307,6 +319,9 @@ class Daemon:
         # recording: check the stop conditions
         if apps:
             self.last_mic_activity = now
+        if (self.dir / "trash").exists():
+            self._finish(trash=True)
+            return
         stop_requested = (self.dir / "stop").exists()
         auto = self.app != MANUAL
         idle_too_long = auto and (now - self.last_mic_activity) > self.cfg.grace_seconds

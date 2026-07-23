@@ -38,6 +38,7 @@ notes, or a local transcription server with a cloud notes model.
 | option | default | notes |
 |---|---|---|
 | `min_meeting_seconds` | `60` | Auto-detected recordings shorter than this are discarded as mic checks. Manual recordings are always kept. |
+| `autotrash` | `true` | Before transcribing, measure audible audio locally (ffmpeg silencedetect, no API involved). A recording with under 10 seconds of audible audio on both channels combined is a no-show: it is discarded with a notification instead of being transcribed and summarized. A live transcript with content skips the measurement. `razorbill trash` (or `t` in the TUI) does the same thing manually for the recording in progress. |
 | `grace_seconds` | `20` | How long the microphone must be free before the meeting counts as over. |
 | `poll_seconds` | `2.0` | Detection poll interval. |
 | `max_hours` | `4.0` | Hard stop for a single recording. |

@@ -69,6 +69,9 @@ class Config:
 
     # --- detection / recording ---
     min_meeting_seconds: int = 60    # discard shorter recordings (mic tests etc.)
+    autotrash: bool = True           # discard no-show meetings (no audible speech
+                                     # on either channel) before transcription,
+                                     # so they cost no tokens and leave no note
     grace_seconds: int = 20          # mic must be free this long before we stop
     poll_seconds: float = 2.0
     max_hours: float = 4.0           # hard stop safety cap

@@ -13,6 +13,7 @@ Everything records through ffmpeg into segmented 16 kHz mono Opus files.
 from __future__ import annotations
 
 import json
+import re
 import signal
 import subprocess
 import sys
@@ -215,6 +216,34 @@ def stereo_pcm(source: str, monitor: str, rate: int = 24000) -> subprocess.Popen
            "-ar", str(rate), "-f", "s16le", "pipe:1"]
     return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+
+def _audible_seconds(stderr: str) -> float:
+    """Non-silent seconds from one ffmpeg silencedetect run (its stderr).
+    Trailing silence without a closing silence_end counts as audible,
+    which errs toward keeping a recording."""
+    silence = sum(float(m) for m in re.findall(r"silence_duration: ([0-9.]+)", stderr))
+    times = re.findall(r"time=(\d+):(\d+):([0-9.]+)", stderr)
+    if not times:
+        return 0.0
+    h, m, s = times[-1]
+    duration = int(h) * 3600 + int(m) * 60 + float(s)
+    return max(0.0, duration - silence)
+
+
+def speech_seconds(files: list[Path]) -> float:
+    """Seconds of audible audio across segment files, measured locally with
+    ffmpeg silencedetect. No API involved; used to spot no-show meetings
+    before any transcription is paid for."""
+    total = 0.0
+    for f in files:
+        out = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-i", str(f),
+             "-af", "silencedetect=noise=-35dB:d=1", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=120,
+        )
+        total += _audible_seconds(out.stderr)
+    return total
 
 
 class Recorder:

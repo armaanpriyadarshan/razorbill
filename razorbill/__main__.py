@@ -1,4 +1,4 @@
-"""CLI: tui (default) | run | statusline | toggle | last | status | note | start | stop | reprocess."""
+"""CLI: tui (default) | run | statusline | toggle | last | status | note | start | stop | trash | reprocess."""
 
 from __future__ import annotations
 
@@ -93,6 +93,12 @@ def cmd_stop(_args) -> None:
     print("stopping. Notes will be generated now")
 
 
+def cmd_trash(_args) -> None:
+    if not state.request_trash():
+        raise SystemExit("no meeting is being recorded")
+    print("trashing. The recording is discarded; no notes")
+
+
 def cmd_ask(args) -> None:
     cfg = config.load()
     api = openai_api.resolve(cfg)
@@ -115,7 +121,8 @@ def cmd_reprocess(_args) -> None:
     for d in dirs:
         print(f"processing {d.name} ...", flush=True)
         try:
-            print(f"  -> {meeting.process(cfg, api, d)}")
+            out = meeting.process(cfg, api, d)
+            print(f"  -> {out}" if out else "  trashed: no audible speech")
         except Exception as e:
             print(f"  failed: {e}", file=sys.stderr)
 
@@ -138,6 +145,7 @@ def main() -> None:
     sub.add_parser("last", help="print and open the newest meeting note")
     sub.add_parser("start", help="start recording now, without waiting for detection")
     sub.add_parser("stop", help="stop the current recording and generate notes")
+    sub.add_parser("trash", help="stop and discard the current recording; no notes")
     q = sub.add_parser("ask", help="ask about the live meeting or the latest note")
     q.add_argument("question", nargs="+")
     sub.add_parser("reprocess", help="retry failed/unfinished meetings")
@@ -156,6 +164,7 @@ def main() -> None:
         "last": cmd_last,
         "start": cmd_start,
         "stop": cmd_stop,
+        "trash": cmd_trash,
         "reprocess": cmd_reprocess,
     }[cmd](args)
 

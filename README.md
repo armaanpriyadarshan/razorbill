@@ -74,12 +74,20 @@ being spoken), and the note list with a built-in Markdown reader.
 | `enter` / `e` | read note / open in editor |
 | `a` | ask about the live meeting or latest note |
 | `r` | start or stop recording |
+| `t` | trash the current recording (press twice; discarded, no notes) |
 | `d` | delete note (press twice; moved to `.trash/` in the output directory) |
 | `p` | retry failed processing |
 | `q` | quit |
 
 CLI: `status [--json]`, `statusline [--polybar]`, `toggle`, `start`,
-`stop`, `ask "..."`, `last`, `reprocess`, `run`, `bird`.
+`stop`, `trash`, `ask "..."`, `last`, `reprocess`, `run`, `bird`.
+
+No-shows cost nothing: `razorbill trash` (or `t` in the TUI) ends the
+current recording and discards it outright, and `autotrash` (on by
+default) catches the rest — before transcribing, razorbill measures
+audible audio locally with ffmpeg, and a meeting where nobody spoke is
+discarded with a notification instead of being transcribed and
+summarized.
 
 ## Live mode
 

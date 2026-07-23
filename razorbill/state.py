@@ -91,3 +91,12 @@ def request_stop() -> bool:
         return False
     (d / "stop").touch()
     return True
+
+
+def request_trash() -> bool:
+    """Stop the current recording and discard it: no transcription, no note."""
+    d = active_dir()
+    if d is None:
+        return False
+    (d / "trash").touch()
+    return True

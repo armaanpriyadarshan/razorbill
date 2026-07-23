@@ -176,6 +176,7 @@ class MainScreen(Screen):
         Binding("e", "open_editor", "editor"),
         Binding("a", "ask", "ask"),
         Binding("r", "record", "record/stop"),
+        Binding("t", "trash_recording", "trash rec", show=False),
         Binding("d", "delete_note", "delete"),
         Binding("p", "reprocess", "reprocess", show=False),
         Binding("q", "app.quit", "quit"),
@@ -209,6 +210,7 @@ class MainScreen(Screen):
         self._live_count = 0
         self._partial_shown = ""
         self._delete_pending: tuple[Path | None, float] = (None, 0.0)
+        self._trash_asked = 0.0
         self._refresh_status()
         self._refresh_notes()
         self.set_interval(1.0, self._refresh_status)
@@ -374,6 +376,18 @@ class MainScreen(Screen):
             self._delete_pending = (path, time.monotonic())
             self.app.flash(f"delete '{path.stem}'? press d again", "warn")
 
+    def action_trash_recording(self) -> None:
+        if state.read_status().get("state") != "recording":
+            self.app.flash("nothing is being recorded")
+            return
+        if time.monotonic() - self._trash_asked < 4.0:
+            self._trash_asked = 0.0
+            state.request_trash()
+            self.app.flash("recording trashed; no notes")
+        else:
+            self._trash_asked = time.monotonic()
+            self.app.flash("trash this recording? press t again", "warn")
+
     def action_record(self) -> None:
         s = state.read_status().get("state")
         if s == "off":
@@ -402,7 +416,8 @@ class MainScreen(Screen):
         for d in dirs:
             try:
                 out = meeting.process(self.app.cfg, api, d)
-                self.app.call_from_thread(self.app.flash, f"notes written: {out.name}")
+                msg = f"notes written: {out.name}" if out else f"{d.name}: trashed, no speech"
+                self.app.call_from_thread(self.app.flash, msg)
             except Exception as e:
                 self.app.call_from_thread(self.app.flash, f"{d.name}: {e}", "warn")
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.0 (2026-07-22)
+
+- No-show meetings no longer cost tokens. `autotrash` (new config key, on
+  by default) measures audible audio locally with ffmpeg before
+  transcription; a recording with under 10 seconds of audible audio on
+  both channels combined is discarded with a notification instead of
+  being transcribed and summarized. A live transcript with content skips
+  the measurement.
+- `razorbill trash` (CLI) and `t` (TUI, press twice) stop the current
+  recording and discard it outright: no transcription, no note, no video.
+
 ## 0.16.0 (2026-07-22)
 
 - **Breaking**: the live copilot feature is removed, including the config

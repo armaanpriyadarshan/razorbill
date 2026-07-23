@@ -9,7 +9,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import context, events, openai_api, transcript, video
+from . import audio, context, events, openai_api, transcript, video
 from .config import Config
 
 META = "meta.json"
@@ -105,8 +105,29 @@ def _duration_minutes(meta: dict) -> int:
         return 0
 
 
-def process(cfg: Config, api: openai_api.Api, d: Path) -> Path:
-    """Turn a recorded meeting directory into a Markdown note. Returns its path.
+MIN_SPEECH_SECONDS = 10  # under this much audible audio, nobody showed up
+
+
+def _no_show(d: Path) -> bool:
+    """Whether the recording has essentially no audible audio on either
+    channel. Measured locally, before any API spend. A live transcript
+    with content proves speech without decoding anything."""
+    live = d / LIVE_MD
+    try:
+        if live.exists() and "**[" in live.read_text():
+            return False
+    except OSError:
+        pass
+    try:
+        segs = _segments(d, "me") + _segments(d, "them")
+        return audio.speech_seconds(segs) < MIN_SPEECH_SECONDS
+    except Exception:
+        return False  # analysis is best-effort; never block processing
+
+
+def process(cfg: Config, api: openai_api.Api, d: Path) -> Path | None:
+    """Turn a recorded meeting directory into a Markdown note. Returns its
+    path, or None when the meeting was autotrashed as a no-show.
 
     On failure the directory is left in .pending for `razorbill reprocess`.
     """
@@ -114,6 +135,9 @@ def process(cfg: Config, api: openai_api.Api, d: Path) -> Path:
     meta |= {"status": "processing", "processing_started": dt.datetime.now().isoformat(timespec="seconds")}
     write_meta(d, meta)
     try:
+        if cfg.autotrash and _no_show(d):
+            discard(d)
+            return None
         return _process(cfg, api, d, meta)
     except Exception:
         meta["status"] = "recorded"  # release the claim so reprocess can retry
