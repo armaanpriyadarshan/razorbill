@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.1 (2026-07-22)
+
+- Shutdown no longer hangs while a meeting is being transcribed.
+  Transcription ran on a ThreadPoolExecutor, whose workers are non-daemon
+  threads that concurrent.futures joins at interpreter exit, so stopping
+  the daemon mid-processing stalled until systemd's SIGKILL. Transcription
+  now uses plain daemon threads; the interrupted meeting is picked up at
+  the next start, as before.
+
 ## 0.17.0 (2026-07-22)
 
 - No-show meetings no longer cost tokens. `autotrash` (new config key, on

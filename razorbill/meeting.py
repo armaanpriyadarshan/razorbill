@@ -6,7 +6,7 @@ import datetime as dt
 import json
 import re
 import shutil
-from concurrent.futures import ThreadPoolExecutor
+import threading
 from pathlib import Path
 
 from . import audio, context, events, openai_api, transcript, video
@@ -77,18 +77,34 @@ def live_markdown(cache: dict) -> str:
 
 def _transcribe_channel(cfg: Config, api: openai_api.Api, files: list[Path],
                         cache: dict) -> list[dict]:
-    def one(item: tuple[int, Path]) -> list[dict]:
-        idx, path = item
-        hit = cache.get(path.name)
-        if hit is not None:
-            return hit
-        segs = openai_api.transcribe(cfg, api, path, offset=idx * cfg.segment_seconds)
-        cache[path.name] = segs
-        return segs
+    # Plain daemon threads, not ThreadPoolExecutor: executor workers are
+    # non-daemon and concurrent.futures joins them at interpreter exit, so
+    # a daemon shutdown during transcription hung until systemd's SIGKILL.
+    results: list[list[dict] | None] = [None] * len(files)
+    errors: list[Exception] = []
+    gate = threading.Semaphore(8)
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        results = list(pool.map(one, enumerate(files)))
-    return [seg for chunk in results for seg in chunk]
+    def one(idx: int, path: Path) -> None:
+        with gate:
+            try:
+                segs = cache.get(path.name)
+                if segs is None:
+                    segs = openai_api.transcribe(cfg, api, path,
+                                                 offset=idx * cfg.segment_seconds)
+                    cache[path.name] = segs
+                results[idx] = segs
+            except Exception as e:
+                errors.append(e)
+
+    threads = [threading.Thread(target=one, args=(i, p), daemon=True)
+               for i, p in enumerate(files)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    if errors:
+        raise errors[0]
+    return [seg for chunk in results if chunk for seg in chunk]
 
 
 def _slug(title: str) -> str:
